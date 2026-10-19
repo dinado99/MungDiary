@@ -204,7 +204,7 @@
     if (/rate limit/i.test(msg)) return '요청이 너무 많아요. 잠시 후 다시 해주세요';
     if (/Failed to fetch|NetworkError/i.test(msg)) return '인터넷 연결을 확인해주세요';
     if (/Requested function was not found|Function not found/i.test(msg)) return 'AI 함수가 아직 배포되지 않았어요 (docs/SETUP.md 8단계)';
-    if (/Failed to send a request to the Edge Function/i.test(msg)) return 'AI 서버에 연결하지 못했어요. 인터넷 연결을 확인해주세요';
+    if (/Failed to send a request to the Edge Function/i.test(msg)) return 'AI 답이 너무 오래 걸렸거나 연결이 끊겼어요. 다시 해주세요';
     if (/column .* does not exist|Could not find the '.*' column/i.test(msg)) return 'DB가 예전 버전이에요. schema.sql 을 다시 실행해주세요';
     if (/relation .* does not exist|Could not find the table/i.test(msg)) return 'DB 테이블이 없어요. schema.sql 을 실행했는지 확인해주세요';
     return `문제가 생겼어요: ${msg}`;
@@ -761,6 +761,7 @@
         ${m.caution ? `<p class="caution">⚠ ${esc(m.caution)}</p>` : ''}
         ${m.memo ? `<p class="memo">${esc(m.memo)}</p>` : ''}
         <div class="med-actions">
+          ${searchLinks(m.name)}
           <button class="btn small" data-action="ask-med" data-id="${m.id}">${sprite('bubble', 1)} 물어보기</button>
           <button class="btn small" data-action="edit-med" data-id="${m.id}">수정</button>
           <button class="btn small" data-action="del-med" data-id="${m.id}">삭제</button>
@@ -995,6 +996,7 @@
       <p>${fmtAI(r.summary || '')}</p>
       ${(r.medicines || []).map((x, i) => `<div class="scan-med">
         <div class="scan-head"><b>${esc(x.name)}</b><span class="tag">${esc(x.kind)}</span><span class="tag conf-${esc(x.confidence)}">${conf[x.confidence] || ''}</span></div>
+        ${searchLinks(x.name)}
         <dl class="kv med-kv">
           ${row('어디에 써요?', x.purpose)}${row('먹이는 법', x.dosage)}${row('주의사항', x.cautions)}
           ${row('보관', x.storage)}${row('유통기한', DATE_RE.test(x.expiry_date) ? x.expiry_date : '')}${row('개봉 후', x.open_days > 0 ? `${x.open_days}일` : '')}
@@ -1007,6 +1009,15 @@
       </div>`).join('')}
       ${sourcesHTML(r.sources)}
     </div>`;
+  }
+
+  // 인터넷 검색은 무료 AI 에서 막힌 경우가 많아서, 바로 찾아볼 수 있는 버튼을 달아요
+  function searchLinks(name) {
+    const q = encodeURIComponent(`${String(name || '').split('(')[0].trim()} 강아지 약`);
+    if (!name) return '';
+    return `<div class="search-links">
+      <a class="chip" href="https://search.naver.com/search.naver?query=${q}" target="_blank" rel="noopener">네이버에서 찾기</a>
+      <a class="chip" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">구글에서 찾기</a></div>`;
   }
 
   const sourcesHTML = list => (list && list.length ? `<details class="sources"><summary>참고한 곳 ${list.length}개</summary><ul>${

@@ -441,6 +441,10 @@ dialog::backdrop { background: rgba(40, 20, 8, .55); }
 .scan-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .tag.conf-high { background: #d8f2b8; border-color: #8fcf5e; }
 .tag.conf-low { background: #ffe0d6; border-color: #f0a08a; }
+.search-links { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.search-links .chip { text-decoration: none; color: var(--ink); }
+.med-actions .search-links { margin: 0 auto 0 0; }
+.med-actions { flex-wrap: wrap; align-items: center; }
 .saved { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--green); }
 .sources { margin-top: 6px; font-size: 12px; }
 .sources summary { cursor: pointer; color: var(--ink-soft); }
