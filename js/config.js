@@ -6,6 +6,6 @@
 // 웹에 공개돼도 괜찮은 키이고, 기록은 schema.sql 의 RLS 정책으로 보호돼요.
 // ⚠ "secret"(sb_secret_...) 이나 "service_role" 키는 절대 넣지 마세요!
 window.MUNG_CONFIG = {
-  supabaseUrl: '',
-  supabaseKey: '',
+  supabaseUrl: 'https://nhmqbwflkhxvpodfxzys.supabase.co',
+  supabaseKey: 'sb_publishable_ZEUxZFC9ZStslsy-ipQC7w_d7PIF217',
 };
