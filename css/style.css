@@ -217,6 +217,10 @@ h1, h2, h3 { font-family: var(--font-title); font-weight: 400; margin: 0; }
 .welcome { text-align: center; padding: 28px 16px; }
 .welcome h2 { font-size: 22px; margin: 14px 0 8px; }
 .welcome p { margin: 0 0 18px; }
+.login-form { max-width: 360px; margin: 0 auto 14px; display: grid; gap: 10px; text-align: left; }
+.login-form .btn-row { justify-content: center; margin-top: 4px; }
+.link { background: none; border: 0; padding: 4px; cursor: pointer; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; font-size: 13px; }
+.link:hover { color: var(--ink); }
 
 /* 펫 카드 */
 .pet-card { display: flex; gap: 16px; align-items: flex-start; }

@@ -11,25 +11,28 @@
 - **약상자** – 처방약의 용도(어디에 쓰는지), 먹이는 법, 유통기한, 개봉 후 사용기한, 보관법, 주의사항. 이름·증상으로 검색, 상태별 필터
 - **가방** – 여러 마리 등록/전환, JSON 백업 받기·불러오기
 
-기록은 브라우저(localStorage)에만 저장돼요. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 **가방 → 백업 파일 받기**를 해두세요.
+## 데이터 저장 & 배포
 
-## 실행
+- **Supabase 모드**: `js/config.js`에 Supabase URL과 공개 키를 넣으면 이메일로 로그인하고 계정에 저장해요. 폰·컴퓨터 어디서든 같은 기록을 볼 수 있어요.
+- **로컬 모드**: `config.js`가 비어 있거나 "로그인 없이 쓰기"를 고르면 이 브라우저(localStorage)에만 저장해요.
 
-빌드 과정 없는 정적 사이트예요.
+👉 **Supabase 설정부터 GitHub Pages 배포까지 단계별 안내: [docs/SETUP.md](docs/SETUP.md)**
+
+내 컴퓨터에서 실행하기 (빌드 과정 없음):
 
 ```sh
-npx serve .        # 또는 python3 -m http.server
+npx serve -l 3000 .   # 또는 python3 -m http.server 3000
 ```
-
-GitHub Pages: 저장소 **Settings → Pages**에서 브랜치와 `/ (root)` 폴더를 고르면 바로 배포돼요.
 
 ## 구조
 
 ```
 index.html
 css/style.css     픽셀 UI (나무 테두리, 탭, 버튼)
+js/config.js      Supabase URL / 공개 키
 js/sprites.js     문자 그리드로 그린 픽셀 스프라이트 → SVG
-js/app.js         화면 · 기록 저장 로직
+js/app.js         화면 · 로그인 · 기록 저장 로직
+supabase/schema.sql  테이블 + RLS 정책
 ```
 
 폰트: [Galmuri](https://github.com/quiple/galmuri) (SIL OFL 1.1)

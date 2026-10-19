@@ -9,7 +9,11 @@
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 3 | 8)).toString(16);
+    }));
 
   // ---------- 날짜 ----------
   const pad = n => String(n).padStart(2, '0');
@@ -61,9 +65,18 @@
   }
 
   // ---------- 저장 ----------
+  // mode: 'local'(이 브라우저에만) | 'cloud'(Supabase 계정) | 'login'(로그인 화면) | 'loading'
+  const LISTS = ['pets', 'vaccines', 'weights', 'meds'];
   const blank = () => ({ pets: [], activePetId: null, vaccines: [], weights: [], meds: [] });
 
-  function load() {
+  const pref = {
+    get(k) { try { return localStorage.getItem(`${KEY}.${k}`); } catch (e) { return null; } },
+    set(k, v) {
+      try { v == null ? localStorage.removeItem(`${KEY}.${k}`) : localStorage.setItem(`${KEY}.${k}`, v); } catch (e) { /* 무시 */ }
+    },
+  };
+
+  function loadLocal() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s && Array.isArray(s.pets)) return Object.assign(blank(), s);
@@ -71,7 +84,7 @@
     return blank();
   }
 
-  function save() {
+  function saveLocal() {
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
     } catch (e) {
@@ -79,11 +92,116 @@
     }
   }
 
-  let state = load();
-  let tab = 'home';
+  const cfg = window.MUNG_CONFIG || {};
+  const sb = cfg.supabaseUrl && cfg.supabaseKey && window.supabase
+    ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey)
+    : null;
+
+  // 앱(camelCase) ↔ DB(snake_case) 컬럼 매핑
+  const COLUMNS = {
+    pets: { name: 'name', breed: 'breed', birthday: 'birthday', sex: 'sex', fur: 'fur', regNo: 'reg_no', note: 'note' },
+    vaccines: { petId: 'pet_id', name: 'name', date: 'date', nextDate: 'next_date', hospital: 'hospital', memo: 'memo' },
+    weights: { petId: 'pet_id', date: 'date', kg: 'kg', memo: 'memo' },
+    meds: {
+      petId: 'pet_id', name: 'name', kind: 'kind', purpose: 'purpose', dosage: 'dosage',
+      prescribedDate: 'prescribed_date', hospital: 'hospital', expiryDate: 'expiry_date', storage: 'storage',
+      openedDate: 'opened_date', openDays: 'open_days', status: 'status', caution: 'caution', memo: 'memo',
+    },
+  };
+
+  function toRow(list, obj) {
+    const row = { id: obj.id };
+    for (const [k, col] of Object.entries(COLUMNS[list])) {
+      if (k in obj) row[col] = obj[k] === '' || obj[k] == null ? null : obj[k];
+    }
+    return row;
+  }
+
+  function fromRow(list, row) {
+    const obj = { id: row.id };
+    for (const [k, col] of Object.entries(COLUMNS[list])) obj[k] = row[col] == null ? '' : String(row[col]);
+    return obj;
+  }
+
+  function check({ error }) {
+    if (error) throw error;
+  }
+
+  const cloudStore = {
+    async loadAll() {
+      const results = await Promise.all(LISTS.map(t => sb.from(t).select('*').order('created_at')));
+      const s = blank();
+      results.forEach((r, i) => {
+        check(r);
+        s[LISTS[i]] = r.data.map(row => fromRow(LISTS[i], row));
+      });
+      return s;
+    },
+    async put(list, obj) { check(await sb.from(list).upsert(toRow(list, obj))); },
+    async del(list, id) { check(await sb.from(list).delete().eq('id', id)); },
+    // 백업/이 기기 기록을 계정에 올리기. id 는 새로 만들어서 겹치지 않게 해요.
+    async upload(src, { replace = false } = {}) {
+      if (replace) check(await sb.from('pets').delete().not('id', 'is', null));
+      const petIds = new Map();
+      const pets = (src.pets || []).map(p => {
+        const id = uid();
+        petIds.set(p.id, id);
+        return toRow('pets', Object.assign({}, p, { id }));
+      });
+      if (pets.length) check(await sb.from('pets').insert(pets));
+      for (const list of ['vaccines', 'weights', 'meds']) {
+        const rows = (src[list] || [])
+          .filter(x => petIds.has(x.petId))
+          .map(x => toRow(list, Object.assign({}, x, { id: uid(), petId: petIds.get(x.petId) })));
+        if (rows.length) check(await sb.from(list).insert(rows));
+      }
+      return petIds;
+    },
+  };
+
+  const localStore = {
+    async put() { /* state 를 통째로 saveLocal() */ },
+    async del() { /* 위와 같음 */ },
+  };
+
+  let mode = sb ? 'loading' : 'local';
+  let user = null;
+  let lastFetch = 0;
+  const store = () => (mode === 'cloud' ? cloudStore : localStore);
+  const persist = () => {
+    pref.set('pet', state.activePetId);
+    if (mode === 'local') saveLocal();
+  };
+
+  let state = mode === 'local' ? loadLocal() : blank();
+  let tab = pref.get('tab') || 'home';
   let medFilter = '전체';
   let medQuery = '';
-  try { tab = localStorage.getItem(KEY + '.tab') || 'home'; } catch (e) { /* 무시 */ }
+
+  async function refresh({ quiet = false } = {}) {
+    try {
+      const s = await cloudStore.loadAll();
+      s.activePetId = pref.get('pet');
+      state = s;
+      lastFetch = Date.now();
+    } catch (e) {
+      if (!quiet) toast(errText(e), 'bad');
+    }
+    render();
+  }
+
+  function errText(e) {
+    const msg = (e && (e.message || e.error_description)) || String(e);
+    if (/[가-힣]/.test(msg)) return msg;
+    if (/Invalid login credentials/i.test(msg)) return '이메일이나 비밀번호가 맞지 않아요';
+    if (/Email not confirmed/i.test(msg)) return '메일함에서 인증 링크를 먼저 눌러주세요';
+    if (/already registered/i.test(msg)) return '이미 가입된 이메일이에요. 로그인해주세요';
+    if (/Password should be/i.test(msg)) return '비밀번호는 6자 이상이어야 해요';
+    if (/rate limit/i.test(msg)) return '요청이 너무 많아요. 잠시 후 다시 해주세요';
+    if (/Failed to fetch|NetworkError/i.test(msg)) return '인터넷 연결을 확인해주세요';
+    if (/relation .* does not exist|Could not find the table/i.test(msg)) return 'DB 테이블이 없어요. schema.sql 을 실행했는지 확인해주세요';
+    return `문제가 생겼어요: ${msg}`;
+  }
 
   const pet = () => state.pets.find(p => p.id === state.activePetId) || state.pets[0];
   const mine = list => { const p = pet(); return p ? list.filter(x => x.petId === p.id) : []; };
@@ -201,35 +319,48 @@
       }
       if (e.target.closest('[data-close]')) dlg.close();
     });
-    form.addEventListener('submit', e => {
+    form.addEventListener('submit', async e => {
       e.preventDefault();
       if (!form.reportValidity()) return;
       const data = Object.fromEntries(new FormData(form));
       for (const k in data) data[k] = String(data[k]).trim();
-      onSubmit(data);
-      dlg.close();
+      const btn = $('[type=submit]', form);
+      btn.disabled = true;
+      btn.textContent = '저장 중...';
+      try {
+        await onSubmit(data);
+        dlg.close();
+      } catch (err) {
+        toast(errText(err), 'bad');
+        btn.disabled = false;
+        btn.textContent = submitText;
+      }
     });
     dlg.showModal();
     const first = $('input, select, textarea', form);
     if (first && window.matchMedia('(pointer: fine)').matches) first.focus();
   }
 
-  function upsert(listName, data, id) {
+  async function upsert(listName, data, id) {
     const list = state[listName];
-    if (id) {
-      const i = list.findIndex(x => x.id === id);
-      if (i >= 0) list[i] = Object.assign({}, list[i], data);
-    } else {
-      list.push(Object.assign({ id: uid(), petId: pet().id }, data));
-    }
-    save();
+    const prev = id && list.find(x => x.id === id);
+    const obj = prev ? Object.assign({}, prev, data) : Object.assign({ id: uid(), petId: pet().id }, data);
+    await store().put(listName, obj);
+    if (prev) list[list.indexOf(prev)] = obj;
+    else list.push(obj);
+    persist();
     render();
   }
 
-  function remove(listName, id, label) {
+  async function remove(listName, id, label) {
     if (!confirm(`'${label}' 기록을 지울까요?`)) return;
+    try {
+      await store().del(listName, id);
+    } catch (e) {
+      return toast(errText(e), 'bad');
+    }
     state[listName] = state[listName].filter(x => x.id !== id);
-    save();
+    persist();
     render();
     toast('지웠어요');
   }
@@ -243,30 +374,36 @@
       fields: PET_FIELDS,
       values: p || {},
       submitText: p ? '저장' : '등록하기',
-      onSubmit: data => {
+      onSubmit: async data => {
+        const obj = Object.assign({ id: uid() }, p, data);
+        await store().put('pets', obj);
         if (p) {
           Object.assign(p, data);
           toast('정보를 고쳤어요');
         } else {
-          const np = Object.assign({ id: uid() }, data);
-          state.pets.push(np);
-          state.activePetId = np.id;
-          toast(`${np.name}, 반가워!`);
+          state.pets.push(obj);
+          state.activePetId = obj.id;
+          toast(`${obj.name}, 반가워!`);
         }
-        save();
+        persist();
         render();
       },
     });
   }
 
-  function deletePet(id) {
+  async function deletePet(id) {
     const p = state.pets.find(x => x.id === id);
     if (!p) return;
     if (!confirm(`${p.name}의 모든 기록(접종, 몸무게, 약)을 지울까요? 되돌릴 수 없어요.`)) return;
+    try {
+      await store().del('pets', id); // DB 에서는 on delete cascade 로 하위 기록도 같이 지워져요
+    } catch (e) {
+      return toast(errText(e), 'bad');
+    }
     state.pets = state.pets.filter(x => x.id !== id);
     for (const k of ['vaccines', 'weights', 'meds']) state[k] = state[k].filter(x => x.petId !== id);
     if (state.activePetId === id) state.activePetId = state.pets[0]?.id ?? null;
-    save();
+    persist();
     render();
   }
 
@@ -422,7 +559,7 @@
       icon: 'syringe',
       fields: VACCINE_FIELDS,
       values: v || {},
-      onSubmit: data => { upsert('vaccines', data, v?.id); toast('접종 기록 완료!'); },
+      onSubmit: async data => { await upsert('vaccines', data, v?.id); toast('접종 기록 완료!'); },
     });
   }
 
@@ -497,9 +634,9 @@
       icon: 'scale',
       fields: WEIGHT_FIELDS,
       values: w || {},
-      onSubmit: data => {
-        if (!(Number(data.kg) > 0)) { toast('몸무게를 숫자로 적어주세요', 'bad'); return; }
-        upsert('weights', data, w?.id);
+      onSubmit: async data => {
+        if (!(Number(data.kg) > 0)) throw new Error('몸무게를 숫자로 적어주세요');
+        await upsert('weights', data, w?.id);
         toast('몸무게 기록 완료!');
       },
     });
@@ -577,7 +714,7 @@
       icon: 'pill',
       fields: MED_FIELDS,
       values: m || {},
-      onSubmit: data => { upsert('meds', data, m?.id); toast('약상자에 넣었어요!'); },
+      onSubmit: async data => { await upsert('meds', data, m?.id); toast('약상자에 넣었어요!'); },
     });
   }
 
@@ -595,14 +732,52 @@
           <button class="btn small" data-action="del-pet" data-id="${p.id}">삭제</button>
         </li>`).join('')}</ul>` : '<p class="muted">아직 등록된 친구가 없어요.</p>'}
     </section>
+    ${renderAccount()}
     <section class="panel">
       <h2 class="title">${sprite('chest', 3)} 백업 상자</h2>
-      <p>기록은 이 브라우저 안에만 저장돼요. 브라우저 데이터를 지우거나 다른 기기에서 보려면 백업 파일을 받아두세요.</p>
+      <p>${mode === 'cloud'
+        ? '기록은 계정(Supabase)에 저장돼요. 혹시 모를 때를 위해 가끔 백업 파일을 받아두면 좋아요.'
+        : '기록은 이 브라우저 안에만 저장돼요. 브라우저 데이터를 지우거나 다른 기기에서 보려면 백업 파일을 받아두세요.'}</p>
       <div class="btn-row">
         <button class="btn btn-ok" data-action="export">백업 파일 받기</button>
         <label class="btn">백업 불러오기<input type="file" id="importFile" accept="application/json,.json" hidden></label>
       </div>
     </section>`;
+  }
+
+  function renderAccount() {
+    if (!sb) return '';
+    if (mode === 'local') {
+      return `<section class="panel">
+        <h2 class="title">${sprite('heart', 3)} 계정</h2>
+        <p>지금은 로그인 없이 이 브라우저에만 저장하고 있어요. 로그인하면 폰·컴퓨터 어디서든 같은 기록을 볼 수 있어요.</p>
+        <button class="btn btn-ok" data-action="go-login">로그인하러 가기</button>
+      </section>`;
+    }
+    const local = loadLocal();
+    return `<section class="panel">
+      <h2 class="title">${sprite('heart', 3)} 계정</h2>
+      <p><b>${esc(user?.email)}</b> 으로 로그인했어요. 기록이 자동으로 저장돼요.</p>
+      ${local.pets.length ? `<p class="note">${sprite('sparkle', 2)} 이 브라우저에 로그인 전에 쓴 기록이 있어요 (${local.pets.map(p => esc(p.name)).join(', ')}).</p>` : ''}
+      <div class="btn-row">
+        ${local.pets.length ? '<button class="btn btn-ok" data-action="migrate">이 기기 기록을 계정으로 옮기기</button>' : ''}
+        <button class="btn" data-action="reload">새로고침</button>
+        <button class="btn" data-action="logout">로그아웃</button>
+      </div>
+    </section>`;
+  }
+
+  async function migrateLocal() {
+    const local = loadLocal();
+    if (!confirm(`이 브라우저에 있던 ${local.pets.length}마리의 기록을 계정에 추가할까요?`)) return;
+    try {
+      await cloudStore.upload(local);
+      try { localStorage.removeItem(KEY); } catch (e) { /* 무시 */ }
+      toast('계정으로 옮겼어요!');
+    } catch (e) {
+      toast(errText(e), 'bad');
+    }
+    refresh();
   }
 
   function exportData() {
@@ -619,18 +794,28 @@
 
   function importData(file) {
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      let s;
       try {
-        const s = JSON.parse(reader.result);
+        s = JSON.parse(reader.result);
         if (!s || !Array.isArray(s.pets)) throw new Error('format');
-        if (!confirm('지금 기록을 백업 파일 내용으로 바꿀까요?')) return;
-        state = Object.assign(blank(), s);
-        save();
-        render();
-        toast('백업을 불러왔어요!');
       } catch (e) {
-        toast('멍다이어리 백업 파일이 아니에요', 'bad');
+        return toast('멍다이어리 백업 파일이 아니에요', 'bad');
       }
+      if (!confirm('지금 기록을 백업 파일 내용으로 바꿀까요? 지금 기록은 지워져요.')) return;
+      if (mode === 'cloud') {
+        try {
+          await cloudStore.upload(s, { replace: true });
+          toast('백업을 불러왔어요!');
+        } catch (e) {
+          toast(errText(e), 'bad');
+        }
+        return refresh();
+      }
+      state = Object.assign(blank(), s);
+      persist();
+      render();
+      toast('백업을 불러왔어요!');
     };
     reader.readAsText(file);
   }
@@ -638,7 +823,63 @@
   // ---------- 렌더 ----------
   const VIEWS = { home: renderHome, vaccines: renderVaccines, weights: renderWeights, meds: renderMeds, settings: renderSettings };
 
+  function renderLogin() {
+    return `<section class="panel welcome login">
+      ${dog(8)}
+      <h2>멍다이어리에 로그인</h2>
+      <p>로그인하면 폰·컴퓨터 어디서든 같은 기록을 볼 수 있어요.</p>
+      <form id="loginForm" class="login-form">
+        <div class="field"><label for="loginEmail">이메일</label>
+          <input id="loginEmail" name="email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="loginPw">비밀번호 (6자 이상)</label>
+          <input id="loginPw" name="password" type="password" autocomplete="current-password" minlength="6" required></div>
+        <div class="btn-row">
+          <button class="btn btn-ok" type="submit" data-auth="in">로그인</button>
+          <button class="btn" type="submit" data-auth="up">처음이에요 (회원가입)</button>
+        </div>
+      </form>
+      <button class="link" data-action="go-local">로그인 없이 이 기기에만 저장하기</button>
+    </section>`;
+  }
+
+  async function handleAuth(form, kind) {
+    if (!form.reportValidity()) return;
+    const email = form.email.value.trim();
+    const password = form.password.value;
+    $$('button', form).forEach(b => { b.disabled = true; });
+    try {
+      if (kind === 'up') {
+        const { data, error } = await sb.auth.signUp({
+          email, password, options: { emailRedirectTo: location.origin + location.pathname },
+        });
+        if (error) throw error;
+        if (!data.session) toast('메일함에서 인증 링크를 눌러주세요!');
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+    } catch (e) {
+      toast(errText(e), 'bad');
+    }
+    $$('button', form).forEach(b => { b.disabled = false; });
+  }
+
+  function renderFoot() {
+    $('#foot').textContent = mode === 'cloud'
+      ? `${user?.email} 계정에 저장 중`
+      : mode === 'local' ? '기록은 이 브라우저에만 저장돼요 · 가방 탭에서 백업할 수 있어요' : '';
+  }
+
   function render() {
+    renderFoot();
+    if (mode === 'login' || mode === 'loading') {
+      state = blank();
+      renderHeader();
+      $$('.tab').forEach(t => { t.disabled = true; });
+      $('#main').innerHTML = mode === 'login' ? renderLogin()
+        : `<section class="panel welcome">${dog(8)}<p>기록을 불러오는 중...</p></section>`;
+      return;
+    }
     if (!pet() && tab !== 'settings') tab = 'home';
     if (pet() && state.activePetId !== pet().id) state.activePetId = pet().id;
     renderHeader();
@@ -647,7 +888,7 @@
 
   function go(t) {
     tab = t;
-    try { localStorage.setItem(KEY + '.tab', t); } catch (e) { /* 무시 */ }
+    pref.set('tab', t);
     render();
     window.scrollTo({ top: $('#tabs').offsetTop - 8, behavior: 'smooth' });
   }
@@ -666,7 +907,52 @@
     'edit-med': id => editMed(id),
     'del-med': id => remove('meds', id, state.meds.find(x => x.id === id)?.name),
     'export': () => exportData(),
+    'migrate': () => migrateLocal(),
+    'reload': () => refresh(),
+    'logout': async () => {
+      if (!confirm('로그아웃할까요?')) return;
+      await sb.auth.signOut();
+    },
+    'go-login': () => { pref.set('localOnly', null); mode = 'login'; render(); },
+    'go-local': () => {
+      pref.set('localOnly', '1');
+      mode = 'local';
+      state = loadLocal();
+      render();
+    },
   };
+
+  // 로그인 상태가 바뀔 때마다 (처음 열 때 포함) 호출돼요
+  function watchAuth() {
+    sb.auth.onAuthStateChange((event, session) => {
+      // 콜백 안에서 바로 supabase 를 호출하면 멈출 수 있어서 한 박자 늦춰요
+      setTimeout(() => {
+        if (session?.user) {
+          if (mode === 'cloud' && user?.id === session.user.id) return;
+          user = session.user;
+          mode = 'cloud';
+          pref.set('localOnly', null);
+          render();
+          refresh();
+        } else if (mode !== 'local') {
+          user = null;
+          if (pref.get('localOnly')) {
+            mode = 'local';
+            state = loadLocal();
+          } else {
+            mode = 'login';
+          }
+          render();
+        }
+      }, 0);
+    });
+    // 다른 기기에서 고친 내용을 탭으로 돌아올 때 다시 불러와요
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && mode === 'cloud' && Date.now() - lastFetch > 30000) {
+        refresh({ quiet: true });
+      }
+    });
+  }
 
   // ---------- 이벤트 ----------
   function init() {
@@ -689,7 +975,7 @@
       const f = e.target.closest('[data-medfilter]');
       if (f) { medFilter = f.dataset.medfilter; return render(); }
       const p = e.target.closest('[data-pick]');
-      if (p) { state.activePetId = p.dataset.pick; save(); render(); }
+      if (p) { state.activePetId = p.dataset.pick; persist(); render(); }
     });
 
     $('#main').addEventListener('input', e => {
@@ -702,6 +988,12 @@
       input.setSelectionRange(pos, pos);
     });
 
+    $('#main').addEventListener('submit', e => {
+      if (e.target.id !== 'loginForm') return;
+      e.preventDefault();
+      handleAuth(e.target, e.submitter?.dataset.auth || 'in');
+    });
+
     $('#main').addEventListener('change', e => {
       if (e.target.id === 'importFile' && e.target.files[0]) importData(e.target.files[0]);
     });
@@ -709,7 +1001,7 @@
     $('#petSwitch').addEventListener('change', e => {
       if (e.target.id !== 'petSelect') return;
       state.activePetId = e.target.value;
-      save();
+      persist();
       render();
     });
 
@@ -726,6 +1018,7 @@
       if (e.target.id === 'dialog') e.target.close();
     });
 
+    if (sb) watchAuth();
     render();
   }
 
