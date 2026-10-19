@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>멍다이어리</title>
+  <meta name="description" content="우리 강아지 접종 기록, 몸무게 변화, 처방약 정보를 한 곳에 모아두는 픽셀 다이어리">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="scene">
+    <div class="sky">
+      <span class="cloud c1" data-sprite="cloud"></span>
+      <span class="cloud c2" data-sprite="cloud"></span>
+      <span class="cloud c3" data-sprite="cloud"></span>
+    </div>
+    <div class="clock" id="clock"></div>
+    <div class="sign">
+      <h1>멍다이어리</h1>
+      <p id="signSub">우리 강아지 건강 수첩</p>
+    </div>
+    <div class="fence"></div>
+    <div class="ground"></div>
+    <div class="buddy" id="buddy" title="쓰다듬기"></div>
+    <div class="pet-switch" id="petSwitch"></div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="메뉴">
+    <button class="tab" data-tab="home"><span data-sprite="house"></span>홈</button>
+    <button class="tab" data-tab="vaccines"><span data-sprite="syringe"></span>접종</button>
+    <button class="tab" data-tab="weights"><span data-sprite="scale"></span>몸무게</button>
+    <button class="tab" data-tab="meds"><span data-sprite="pill"></span>약상자</button>
+    <button class="tab" data-tab="ask"><span data-sprite="bubble"></span>물어보기</button>
+    <button class="tab" data-tab="settings"><span data-sprite="chest"></span>가방</button>
+  </nav>
+
+  <main id="main" class="main"></main>
+
+  <footer class="foot" id="foot"></footer>
+
+  <dialog id="dialog"></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/looks.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
