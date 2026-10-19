@@ -1,7 +1,7 @@
 # 멍다이어리 설정 & 배포 가이드
 
 **Supabase**에 기록을 저장하고 **GitHub Pages**로 배포하는 순서예요. 처음부터 끝까지 30분 정도 걸려요.
-AI 약 도우미(사진 인식·물어보기)까지 쓰려면 [8단계](#8단계-ai-약-도우미-켜기-사진-인식--물어보기)를 추가로 해요 (15분).
+AI 약 도우미(사진 인식·물어보기)까지 쓰려면 [8단계](#8단계-ai-약-도우미-켜기-사진-인식--물어보기)를 추가로 해요 (10분, Google Gemini 무료 사용량으로 **무료**).
 
 ```
 [ 브라우저 (GitHub Pages) ]  ──로그인/기록──▶  [ Supabase ]
@@ -155,51 +155,59 @@ git push
 
 ## 8단계. AI 약 도우미 켜기 (사진 인식 + 물어보기)
 
-약봉투·약병 사진을 올리면 AI(Claude)가 글자를 읽고, 웹에서 약 정보를 찾아 **용도·먹이는 법·주의사항·보관법·유통기한**을 정리해요. 그 결과를 **약상자에 바로 저장**할 수 있어요 (사진도 같이 저장돼요). **물어보기** 탭에서는 우리 강아지 정보와 약상자를 참고해서 질문에 답해요.
+약봉투·약병 사진을 올리면 AI가 글자를 읽고, 인터넷에서 약 정보를 찾아 **용도·먹이는 법·주의사항·보관법·유통기한**을 정리해요. 결과는 **약상자에 바로 저장**할 수 있고 사진도 같이 저장돼요. **물어보기** 탭에서는 우리 강아지 정보와 약상자를 참고해서 질문에 답해요.
 
 ```
-브라우저 ──(로그인 토큰 + 사진)──▶ Supabase Edge Function "med-ai" ──(API 키)──▶ Claude API
+브라우저 ──(로그인 토큰 + 사진)──▶ Supabase Edge Function "med-ai" ──(AI 키)──▶ Google Gemini (무료)
+                                                                         또는 Claude (유료)
 ```
 
-Claude API 키는 **비밀값**이라 웹페이지(`config.js`)에 넣으면 안 돼요. 그래서 Supabase Edge Function이 중간에서 키를 들고 대신 호출해요. 함수는 **로그인한 사람만** 쓸 수 있어요.
+AI 키는 **비밀값**이라 웹페이지(`config.js`)에 넣으면 안 돼요. 그래서 Supabase Edge Function이 키를 들고 대신 호출해요. 함수는 **로그인한 사람만** 쓸 수 있어요.
 
-### 8-1. Claude API 키 만들기
-1. <https://console.anthropic.com> 에 가입하고 로그인해요.
-2. **Billing**에서 크레딧을 충전해요. 처음엔 $5~10 정도면 충분해요.
-3. **Limits**(또는 Billing → Spend limits)에서 **월 사용 한도**를 정해두면 요금이 갑자기 많이 나올 걱정이 없어요.
-4. **API Keys → Create Key**로 키를 만들고 `sk-ant-...` 값을 복사해요. 이 키는 다시 볼 수 없으니 바로 다음 단계에 넣어요.
-5. 조직 설정에서 **웹 검색(Web search)** 이 꺼져 있다면 켜주세요. 꺼져 있으면 사진 인식 때 약 정보 검색이 안 돼요.
+이 단계를 건너뛰어도 나머지 기능은 다 돼요. 물어보기 탭에서 "AI 키가 아직 설정되지 않았어요"라고만 나와요.
 
-> 💰 **요금 감**: 사진 1장 인식은 보통 약 정보 검색을 몇 번 해서 **수십~수백 원** 정도, 질문 하나는 그보다 적게 들어요 (검색량에 따라 달라요). 실제 사용량은 Console의 **Usage**에서 볼 수 있어요.
+### 8-1. 무료 Gemini API 키 만들기 (카드 등록 없음)
+1. <https://aistudio.google.com> 에 구글 계정으로 로그인해요.
+2. 왼쪽 메뉴 **Get API key → Create API key**를 눌러요. 프로젝트를 고르라고 하면 새로 만들면 돼요.
+3. 만들어진 키(`AIza...`)를 복사해요.
+4. **결제(Billing)는 연결하지 마세요.** 연결하지 않으면 무료 사용량 안에서만 동작하고, 돈이 나갈 일이 없어요.
+
+> ℹ️ 무료 사용량은 하루·분당 횟수 제한이 있어요. 혼자 쓰기엔 보통 충분하고, 넘으면 "오늘 무료 AI 사용량을 다 썼어요"라는 안내가 떠요. 정확한 한도는 AI Studio의 사용량(Usage / Rate limit) 화면에서 볼 수 있어요.
+>
+> 🔒 무료 요금제에서는 보낸 내용(사진, 질문)이 Google 서비스 개선에 쓰일 수 있어요. 키를 만들 때 약관을 한번 확인해주세요.
 
 ### 8-2. 방법 A — 대시보드에서 배포 (설치 없이)
 1. Supabase 대시보드 → **Edge Functions** → **Secrets**(또는 Project Settings → Edge Functions)에서 **Add new secret**:
-   - Name: `ANTHROPIC_API_KEY` / Value: `sk-ant-...`
+   - Name: `GEMINI_API_KEY` / Value: `AIza...`
 2. **Edge Functions → Deploy a new function → Via Editor**를 눌러요.
 3. 함수 이름을 **`med-ai`** 로 정해요. 이름이 정확히 같아야 앱이 찾을 수 있어요.
 4. 에디터 내용을 지우고 이 저장소의 [`supabase/functions/med-ai/index.ts`](../supabase/functions/med-ai/index.ts) 내용을 전부 붙여넣은 뒤 **Deploy function**을 눌러요.
+   복사가 어려우면 GitHub 파일 화면 위쪽의 **Copy raw file** 아이콘을 쓰면 돼요.
 5. 배포가 끝나면 함수의 **Details / Settings**에서 **Enforce JWT verification**(Verify JWT)을 **끄고** 저장해요.
-   로그인 확인은 함수 코드가 직접 해요. 이 옵션이 켜져 있으면 새 서명 키를 쓰는 프로젝트에서 401 오류가 날 수 있어요.
+   로그인 확인은 함수 코드가 직접 해요. 이 옵션이 켜져 있으면 401 오류가 날 수 있어요.
 
 ### 8-2. 방법 B — Supabase CLI로 배포
 ```sh
 npx supabase login                                   # 브라우저로 로그인
 npx supabase link --project-ref <프로젝트-ref>         # URL의 https://<ref>.supabase.co 부분
-npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+npx supabase secrets set GEMINI_API_KEY=AIza...
 npx supabase functions deploy med-ai --no-verify-jwt
 ```
-`supabase/config.toml`에 `verify_jwt = false`가 이미 들어 있어요.
 
 ### 8-3. 확인
 1. 사이트에 로그인 → **약상자 → 사진으로 등록** (또는 **물어보기** 탭의 📷 버튼).
-2. 30초~1분 뒤 약 정보 카드가 뜨면 **약상자에 저장** 또는 **고쳐서 저장**을 눌러요.
+2. 잠시 뒤 약 정보 카드가 뜨면 **약상자에 저장** 또는 **고쳐서 저장**을 눌러요.
 3. **물어보기**에서 "지금 먹는 약들 같이 먹여도 괜찮아?" 같은 질문도 해봐요.
 4. 잘 안 되면 대시보드 **Edge Functions → med-ai → Logs**에서 오류를 볼 수 있어요.
 
-### (선택) 다른 모델 쓰기
-기본 모델은 `claude-opus-5-5`예요. 비용을 줄이고 싶으면 Secret에 `CLAUDE_MODEL` = `claude-sonnet-5-5`를 추가하면 돼요. 함수를 다시 배포할 필요는 없어요.
+### (선택) 설정 바꾸기 — 모두 Secret으로, 함수 재배포 필요 없음
+| Secret | 설명 |
+| --- | --- |
+| `GEMINI_MODEL` | 기본값 `gemini-flash-latest`(최신 Flash 모델). "모델을 찾을 수 없어요"가 뜨면 AI Studio의 모델 목록에 있는 이름(예: `gemini-…-flash`)으로 바꿔요 |
+| `ANTHROPIC_API_KEY` + `AI_PROVIDER=claude` | 나중에 유료 Claude로 바꾸고 싶을 때 (console.anthropic.com에서 크레딧 충전 + 월 한도 설정) |
+| `CLAUDE_MODEL` | Claude를 쓸 때 모델 (기본 `claude-opus-5-5`) |
 
-> ⚠ AI 답변은 참고용이에요. 약봉투·라벨에 적힌 **수의사 지시가 항상 먼저**이고, 응급 상황이면 바로 동물병원에 연락하세요.
+> ⚠ AI 답변은 참고용이에요. 무료 AI는 약 이름을 잘못 읽을 수 있으니 저장 전에 **고쳐서 저장**으로 확인해주세요. 약봉투·라벨에 적힌 **수의사 지시가 항상 먼저**이고, 응급 상황이면 바로 동물병원에 연락하세요.
 
 ## 문제 해결
 
@@ -214,7 +222,10 @@ npx supabase functions deploy med-ai --no-verify-jwt
 | 갑자기 아무것도 안 불러와져요 | 무료 프로젝트가 일시정지됐을 수 있어요. 대시보드에서 **Restore project**를 눌러주세요. |
 | "AI 함수가 아직 배포되지 않았어요" | 8-2 단계를 안 했거나 함수 이름이 `med-ai`가 아니에요. |
 | AI가 "로그인이 필요해요"라고 해요 / 401 | 8-2의 **Verify JWT를 끄기**를 확인해주세요. 로그아웃 후 다시 로그인해도 돼요. |
-| "ANTHROPIC_API_KEY 설정을 확인해주세요" | Secret 이름이 정확한지, 키가 유효한지, Anthropic Console에 크레딧이 있는지 확인해주세요. |
+| "AI 키가 아직 설정되지 않았어요" | Secret 이름이 정확히 `GEMINI_API_KEY`인지 확인해주세요. |
+| "GEMINI_API_KEY 설정을 확인해주세요" | 키를 다시 복사해서 넣어주세요. AI Studio에서 키가 지워지지 않았는지도 확인해요. |
+| "오늘 무료 AI 사용량을 다 썼어요" | 무료 한도를 넘었어요. 잠시 뒤나 다음 날 다시 쓰면 돼요. |
+| "Gemini 모델을 찾을 수 없어요" | `GEMINI_MODEL` Secret을 AI Studio 모델 목록에 있는 이름으로 넣어주세요. |
 | 사진은 저장 안 되고 약 정보만 저장돼요 | `schema.sql`을 다시 실행해서 `med-photos` 버킷을 만들어주세요. |
 | "DB가 예전 버전이에요" | 최신 `schema.sql`을 다시 실행해주세요 (기존 기록은 지워지지 않아요). |
 | 기록을 엑셀처럼 보고 싶어요 | Supabase **Table Editor**에서 바로 보고 고칠 수 있어요. 오른쪽 위 **Export → CSV**도 돼요. |
