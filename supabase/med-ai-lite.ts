@@ -24,22 +24,32 @@ function ctxText(c: Ctx = {}) {
   return out.filter(Boolean).join("\n").slice(0, 6000);
 }
 
+// 무료 한도가 계정·모델마다 달라서, 막히면(429/404) 검색 없이 → 가벼운 모델 순서로 다시 시도해요
+const TRIES = [...new Set([MODEL, "gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-2.5-flash"])]
+  .flatMap((m) => [{ m, search: true }, { m, search: false }]);
+
 async function gemini(system: string, contents: unknown[]) {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": KEY },
-    body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents, tools: [{ google_search: {} }] }),
-  });
-  const d = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    console.error("gemini", res.status, d?.error?.message);
+  let res: Response | undefined, d: any = {};
+  for (const t of TRIES) {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${t.m}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": KEY },
+      body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents, ...(t.search ? { tools: [{ google_search: {} }] } : {}) }),
+    });
+    d = await res.json().catch(() => ({}));
+    if (res.ok) break;
+    console.error("gemini", t.m, t.search ? "+search" : "", res.status, d?.error?.message);
+    if (res.status !== 429 && res.status !== 404) break;
+  }
+  if (!res!.ok) {
+    const why = String(d?.error?.message ?? "").slice(0, 160);
     const msg: Record<number, string> = {
-      429: "오늘 무료 AI 사용량을 다 썼거나 요청이 너무 많아요. 잠시 후 다시 해주세요",
-      404: `Gemini 모델(${MODEL})을 찾을 수 없어요. GEMINI_MODEL 설정을 확인해주세요`,
+      429: "무료 AI 한도에 걸렸어요. 잠시 후 다시 해주세요",
+      404: "쓸 수 있는 Gemini 모델을 찾지 못했어요",
       401: "Gemini가 API 키를 거부했어요. 키를 다시 넣거나 새 키를 만들어주세요",
       403: "GEMINI_API_KEY 설정을 확인해주세요",
     };
-    throw { status: res.status === 429 ? 429 : 500, message: msg[res.status] ?? `AI 서버 오류 (${res.status})` };
+    throw { status: res!.status === 429 ? 429 : 500, message: `${msg[res!.status] ?? `AI 서버 오류 (${res!.status})`}${why ? `\n(구글: ${why})` : ""}` };
   }
   const cand = d.candidates?.[0] ?? {};
   const text = (cand.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("").trim();
