@@ -408,6 +408,83 @@ dialog::backdrop { background: rgba(40, 20, 8, .55); }
 .quick { display: flex; gap: 6px; }
 .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 
+/* ---------- 약 사진 & 물어보기 ---------- */
+.med-photo {
+  display: block; width: 100%; margin: 8px 0 0; padding: 0; cursor: zoom-in;
+  border: 3px solid var(--wood-light); background: var(--cream); line-height: 0;
+}
+.med-photo img { width: 100%; height: 120px; object-fit: cover; image-rendering: auto; }
+.med-photo img:not([src]) { visibility: hidden; }
+
+.ask .msgs {
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: min(60vh, 560px); min-height: 220px; overflow-y: auto; position: relative;
+  background: var(--cream); border: 3px solid var(--wood-light); padding: 10px;
+}
+.msg { max-width: 88%; padding: 8px 10px; position: relative; overflow-wrap: anywhere; }
+.msg p { margin: 0; white-space: pre-wrap; }
+.msg.me {
+  align-self: flex-end; background: #d8f2b8;
+  box-shadow: 3px 0 0 var(--grass-dark), -3px 0 0 var(--grass-dark), 0 3px 0 var(--grass-dark), 0 -3px 0 var(--grass-dark);
+}
+.msg.me img { display: block; max-width: 220px; max-height: 220px; margin-bottom: 6px; image-rendering: auto; border: 2px solid var(--grass-dark); }
+.msg.ai {
+  align-self: flex-start; background: #fff;
+  box-shadow: 3px 0 0 var(--wood), -3px 0 0 var(--wood), 0 3px 0 var(--wood), 0 -3px 0 var(--wood);
+}
+.msg.ai.wide { max-width: 100%; width: 100%; }
+.msg.ai.pending p { color: var(--ink-soft); animation: pulse 1.2s steps(2) infinite; }
+.msg.ai.pending { display: flex; align-items: center; gap: 8px; }
+.msg.ai.error { background: #ffe0d6; }
+.who { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; }
+.scan-med { margin-top: 10px; padding: 8px; background: var(--cream); border: 2px dashed var(--wood-light); }
+.scan-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tag.conf-high { background: #d8f2b8; border-color: #8fcf5e; }
+.tag.conf-low { background: #ffe0d6; border-color: #f0a08a; }
+.saved { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--green); }
+.sources { margin-top: 6px; font-size: 12px; }
+.sources summary { cursor: pointer; color: var(--ink-soft); }
+.sources ul { margin: 4px 0 0; padding-left: 18px; }
+.sources a { color: var(--wood); }
+.chips-row.center { justify-content: center; margin-top: 10px; }
+.ask-form { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+.ask-form input { flex: 1; min-width: 0; }
+.ask-form .btn { margin: 3px; }
+.disclaimer { font-size: 12px; color: var(--ink-soft); margin: 6px 0 0; text-align: center; }
+
+/* ---------- 생김새 고르기 ---------- */
+.look-picker { background: var(--cream); border: 3px solid var(--wood-light); padding: 8px; }
+.look-top { display: flex; gap: 10px; align-items: flex-start; }
+.look-preview {
+  flex: none; line-height: 0; padding: 6px;
+  background: #bfe6a0; border: 3px solid var(--wood-dark); box-shadow: inset 0 -14px 0 #8fcf5e;
+}
+.breeds { flex: 1; min-width: 0; }
+.opt-label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 2px; }
+.opts { display: flex; flex-wrap: wrap; gap: 4px; }
+.opts.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.opt {
+  flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  width: 64px; padding: 4px 2px; cursor: pointer;
+  background: #fff; border: 2px solid var(--parch-2);
+}
+.opt small { font-size: 11px; line-height: 1.2; text-align: center; word-break: keep-all; }
+.opt:hover { border-color: var(--wood-light); }
+.opt.on { border-color: var(--wood-dark); background: #fff4d6; box-shadow: inset 0 0 0 2px var(--wood-light); }
+.look-custom { margin-top: 8px; }
+.look-custom summary { cursor: pointer; font-size: 13px; color: var(--ink-soft); margin-bottom: 4px; }
+.opt-row { margin-top: 6px; }
+.swatch {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: none; border: 0; padding: 2px; cursor: pointer; width: 44px;
+}
+.swatch::before {
+  content: ''; width: 26px; height: 26px; display: block;
+  background: var(--c); box-shadow: inset -4px -4px 0 var(--d), 0 0 0 2px var(--ink);
+}
+.swatch.on::before { box-shadow: inset -4px -4px 0 var(--d), 0 0 0 2px var(--ink), 0 0 0 5px var(--wood-light); }
+.swatch small { font-size: 11px; }
+
 /* ---------- 토스트 ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 20px;
@@ -448,6 +525,9 @@ dialog::backdrop { background: rgba(40, 20, 8, .55); }
   .tab { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 2px; padding: 6px 2px 8px; font-size: 12px; }
   .pet-card { flex-direction: column; align-items: center; text-align: left; }
   .form-grid { grid-template-columns: 1fr; }
+  .look-top { flex-direction: column; align-items: center; }
+  .breeds { width: 100%; }
+  .opt { width: 58px; }
   .record { flex-wrap: wrap; }
   .rec-main { flex-basis: calc(100% - 80px); }
   .kv-row { grid-template-columns: 76px 1fr; }

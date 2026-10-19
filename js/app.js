@@ -99,13 +99,14 @@
 
   // 앱(camelCase) ↔ DB(snake_case) 컬럼 매핑
   const COLUMNS = {
-    pets: { name: 'name', breed: 'breed', birthday: 'birthday', sex: 'sex', fur: 'fur', regNo: 'reg_no', note: 'note' },
+    pets: { name: 'name', breed: 'breed', birthday: 'birthday', sex: 'sex', fur: 'fur', look: 'look', regNo: 'reg_no', note: 'note' },
     vaccines: { petId: 'pet_id', name: 'name', date: 'date', nextDate: 'next_date', hospital: 'hospital', memo: 'memo' },
     weights: { petId: 'pet_id', date: 'date', kg: 'kg', memo: 'memo' },
     meds: {
       petId: 'pet_id', name: 'name', kind: 'kind', purpose: 'purpose', dosage: 'dosage',
       prescribedDate: 'prescribed_date', hospital: 'hospital', expiryDate: 'expiry_date', storage: 'storage',
       openedDate: 'opened_date', openDays: 'open_days', status: 'status', caution: 'caution', memo: 'memo',
+      photoPath: 'photo_path',
     },
   };
 
@@ -119,7 +120,10 @@
 
   function fromRow(list, row) {
     const obj = { id: row.id };
-    for (const [k, col] of Object.entries(COLUMNS[list])) obj[k] = row[col] == null ? '' : String(row[col]);
+    for (const [k, col] of Object.entries(COLUMNS[list])) {
+      const v = row[col];
+      obj[k] = v == null ? '' : typeof v === 'object' ? v : String(v);
+    }
     return obj;
   }
 
@@ -199,6 +203,9 @@
     if (/Password should be/i.test(msg)) return '비밀번호는 6자 이상이어야 해요';
     if (/rate limit/i.test(msg)) return '요청이 너무 많아요. 잠시 후 다시 해주세요';
     if (/Failed to fetch|NetworkError/i.test(msg)) return '인터넷 연결을 확인해주세요';
+    if (/Requested function was not found|Function not found/i.test(msg)) return 'AI 함수가 아직 배포되지 않았어요 (docs/SETUP.md 8단계)';
+    if (/Failed to send a request to the Edge Function/i.test(msg)) return 'AI 서버에 연결하지 못했어요. 인터넷 연결을 확인해주세요';
+    if (/column .* does not exist|Could not find the '.*' column/i.test(msg)) return 'DB가 예전 버전이에요. schema.sql 을 다시 실행해주세요';
     if (/relation .* does not exist|Could not find the table/i.test(msg)) return 'DB 테이블이 없어요. schema.sql 을 실행했는지 확인해주세요';
     return `문제가 생겼어요: ${msg}`;
   }
@@ -214,11 +221,11 @@
   ];
 
   const PET_FIELDS = [
+    { name: 'look', label: '생김새', type: 'look', wide: true },
     { name: 'name', label: '이름', required: true, placeholder: '예) 개복치' },
-    { name: 'breed', label: '견종', placeholder: '예) 웨스티' },
+    { name: 'breed', label: '견종', placeholder: '예) 웨스티, 믹스견', list: window.Looks.BREEDS.map(b => b[0]) },
     { name: 'birthday', label: '생일', type: 'date' },
     { name: 'sex', label: '성별', type: 'select', options: ['남아', '여아', '남아 (중성화)', '여아 (중성화)'] },
-    { name: 'fur', label: '털 색 (픽셀 강아지 색)', type: 'select', options: window.Pixel.FUR },
     { name: 'regNo', label: '동물등록번호', placeholder: '15자리' },
     { name: 'note', label: '특이사항 (알러지, 지병 등)', type: 'textarea', wide: true, placeholder: '병원에서 꼭 말해야 하는 것' },
   ];
@@ -279,6 +286,11 @@
     const raw = values[f.name] ?? (typeof f.default === 'function' ? f.default() : f.default) ?? '';
     const req = f.required ? 'required' : '';
     let input;
+    if (f.type === 'look') {
+      return `<div class="field wide"><label>${esc(f.label)}</label>
+        <input type="hidden" name="${f.name}" value="${esc(JSON.stringify(petLook(values)))}">
+        <div class="look-picker">${lookPickerHTML(petLook(values))}</div></div>`;
+    }
     if (f.type === 'textarea') {
       input = `<textarea id="${id}" name="${f.name}" rows="2" placeholder="${esc(f.placeholder || '')}" ${req}>${esc(raw)}</textarea>`;
     } else if (f.type === 'select') {
@@ -318,6 +330,23 @@
         form.elements[q.dataset.quick].value = addMonths(from, Number(q.dataset.months));
       }
       if (e.target.closest('[data-close]')) dlg.close();
+      const lk = e.target.closest('[data-look-key], [data-breed]');
+      if (lk) {
+        const input = form.elements.look;
+        let look = JSON.parse(input.value);
+        if (lk.dataset.breed != null) {
+          const [name, preset] = window.Looks.BREEDS[Number(lk.dataset.breed)];
+          look = Object.assign({}, preset);
+          if (form.elements.breed) form.elements.breed.value = name;
+        } else {
+          look[lk.dataset.lookKey] = lk.dataset.lookValue;
+        }
+        input.value = JSON.stringify(look);
+        const scroller = $('.breeds .opts', form);
+        const left = scroller ? scroller.scrollLeft : 0;
+        $('.look-picker', form).innerHTML = lookPickerHTML(look);
+        $('.breeds .opts', form).scrollLeft = left;
+      }
     });
     form.addEventListener('submit', async e => {
       e.preventDefault();
@@ -353,19 +382,46 @@
   }
 
   async function remove(listName, id, label) {
-    if (!confirm(`'${label}' 기록을 지울까요?`)) return;
+    if (!confirm(`'${label}' 기록을 지울까요?`)) return false;
     try {
       await store().del(listName, id);
     } catch (e) {
-      return toast(errText(e), 'bad');
+      toast(errText(e), 'bad');
+      return false;
     }
     state[listName] = state[listName].filter(x => x.id !== id);
     persist();
     render();
     toast('지웠어요');
+    return true;
   }
 
   // ---------- 펫 ----------
+  // 예전 기록은 털 색(fur)만 있어서 기본 생김새에 덮어써요
+  function petLook(p) {
+    const look = p && typeof p.look === 'object' && p.look ? p.look : {};
+    return Object.assign({}, window.Pixel.DEFAULT_LOOK, p && p.fur ? { fur: p.fur } : {}, look);
+  }
+
+  function lookPickerHTML(look) {
+    const { OPTIONS, BREEDS } = window.Looks;
+    const still = l => window.Pixel.dogStill(3, l);
+    const row = (key, label) => `<div class="opt-row"><span class="opt-label">${label}</span><div class="opts">${
+      OPTIONS[key].map(([v, name]) => `<button type="button" class="opt ${look[key] === v ? 'on' : ''}" data-look-key="${key}" data-look-value="${v}">${
+        still(Object.assign({}, look, { [key]: v }))}<small>${name}</small></button>`).join('')}</div></div>`;
+    const colors = (key, label) => `<div class="opt-row"><span class="opt-label">${label}</span><div class="opts">${
+      Object.entries(window.Pixel.FUR).map(([name, c]) => `<button type="button" class="swatch ${look[key] === name ? 'on' : ''}" data-look-key="${key}" data-look-value="${name}" title="${name}" style="--c:${c.W};--d:${c.G}"><small>${name}</small></button>`).join('')}</div></div>`;
+    return `<div class="look-top">
+        <div class="look-preview">${dog(6, look)}</div>
+        <div class="breeds"><span class="opt-label">견종으로 고르기 (믹스·유기견도 OK)</span><div class="opts scroll">${
+          BREEDS.map(([name, l], i) => `<button type="button" class="opt breed" data-breed="${i}">${still(l)}<small>${esc(name)}</small></button>`).join('')}</div></div>
+      </div>
+      <details class="look-custom" open><summary>직접 꾸미기</summary>
+        ${row('ears', '귀')}${row('head', '털')}${row('face', '코')}${row('pattern', '무늬')}
+        ${colors('fur', '털 색')}${colors('fur2', '무늬 색')}${row('earColor', '귀 색')}
+      </details>`;
+  }
+
   function editPet(id) {
     const p = id ? state.pets.find(x => x.id === id) : null;
     openForm({
@@ -375,6 +431,8 @@
       values: p || {},
       submitText: p ? '저장' : '등록하기',
       onSubmit: async data => {
+        data.look = JSON.parse(data.look);
+        data.fur = data.look.fur;
         const obj = Object.assign({ id: uid() }, p, data);
         await store().put('pets', obj);
         if (p) {
@@ -412,7 +470,7 @@
     const p = pet();
     const { season, day, wd } = seasonDate();
     $('#clock').innerHTML = `<div class="clock-day">${wd}. ${day}</div><div class="clock-season">${sprite('sun', 2)}${season} ${day}일</div>`;
-    $('#buddy').innerHTML = dog(5, p?.fur) + '<span class="shadow"></span>';
+    $('#buddy').innerHTML = dog(5, p && petLook(p)) + '<span class="shadow"></span>';
     $('#signSub').textContent = p ? `${p.name}의 건강 수첩` : '우리 강아지 건강 수첩';
     const sw = $('#petSwitch');
     if (state.pets.length > 1) {
@@ -477,7 +535,7 @@
 
     return `<div class="grid-2">
       <section class="panel pet-card">
-        <div class="pet-portrait">${dog(6, p.fur)}</div>
+        <div class="pet-portrait">${dog(6, petLook(p))}</div>
         <div class="pet-info">
           <h2>${esc(p.name)} ${sprite('heart', 2)}</h2>
           <dl class="kv">
@@ -665,9 +723,12 @@
     return `<section class="panel">
       <div class="head-row">
         <h2 class="title">${sprite('pill', 3)} 약상자</h2>
-        <button class="btn btn-ok" data-action="add-med">+ 약 등록</button>
+        <div class="btn-row">
+          <label class="btn btn-ok">${sprite('camera', 2)} 사진으로 등록<input type="file" class="photo-input" accept="image/*" hidden></label>
+          <button class="btn" data-action="add-med">+ 직접 등록</button>
+        </div>
       </div>
-      <p class="muted">"이 약 뭐였지? 아직 먹여도 되나?" 병원에 물어보기 전에 여기서 찾아봐요.</p>
+      <p class="muted">"이 약 뭐였지? 아직 먹여도 되나?" 약봉투나 약병을 찍어 올리면 AI가 찾아서 정리해줘요.</p>
       <div class="toolbar">
         <input type="search" id="medSearch" placeholder="약 이름, 증상으로 찾기" value="${esc(medQuery)}" aria-label="약 검색">
         <div class="chips-row">${['전체', ...MED_STATUS, '기한 지남'].map(f =>
@@ -687,6 +748,7 @@
           </div>
           ${m.status !== '다 씀' ? ddayBadge(d, '기한 지남') : ''}
         </header>
+        ${m.photoPath ? `<button class="med-photo" data-photo="${esc(m.photoPath)}" aria-label="약 사진 크게 보기"><img alt="" data-photo-src="${esc(m.photoPath)}"></button>` : ''}
         <dl class="kv med-kv">
           ${row('어디에 써요?', esc(m.purpose) || '<span class="muted">미입력</span>')}
           ${row('먹이는 법', esc(m.dosage))}
@@ -699,6 +761,7 @@
         ${m.caution ? `<p class="caution">⚠ ${esc(m.caution)}</p>` : ''}
         ${m.memo ? `<p class="memo">${esc(m.memo)}</p>` : ''}
         <div class="med-actions">
+          <button class="btn small" data-action="ask-med" data-id="${m.id}">${sprite('bubble', 1)} 물어보기</button>
           <button class="btn small" data-action="edit-med" data-id="${m.id}">수정</button>
           <button class="btn small" data-action="del-med" data-id="${m.id}">삭제</button>
         </div>
@@ -707,15 +770,277 @@
       : `<section class="panel"><div class="empty">${sprite('pill', 4)}<p>${all.length ? '찾는 약이 없어요' : '약상자가 비어있어요.<br>처방받은 약을 넣어볼까요?'}</p></div></section>`}`;
   }
 
-  function editMed(id) {
+  function editMed(id, prefill, onSaved) {
     const m = id && state.meds.find(x => x.id === id);
+    const values = m || prefill || {};
     openForm({
       title: m ? '약 정보 수정' : '약 등록하기',
       icon: 'pill',
       fields: MED_FIELDS,
-      values: m || {},
-      onSubmit: async data => { await upsert('meds', data, m?.id); toast('약상자에 넣었어요!'); },
+      values,
+      onSubmit: async data => {
+        if (values.photoPath) data.photoPath = values.photoPath;
+        await upsert('meds', data, m?.id);
+        toast('약상자에 넣었어요!');
+        if (onSaved) onSaved();
+      },
     });
+  }
+
+  // ---------- 약 사진 ----------
+  const photoUrls = new Map(); // path → { url, until }
+
+  async function hydratePhotos() {
+    if (mode !== 'cloud') return;
+    for (const img of $$('img[data-photo-src]')) {
+      const path = img.dataset.photoSrc;
+      try {
+        img.src = await photoUrl(path);
+      } catch (e) {
+        img.closest('.med-photo')?.remove();
+      }
+    }
+  }
+
+  async function photoUrl(path) {
+    const hit = photoUrls.get(path);
+    if (hit && hit.until > Date.now()) return hit.url;
+    const { data, error } = await sb.storage.from('med-photos').createSignedUrl(path, 3600);
+    if (error) throw error;
+    photoUrls.set(path, { url: data.signedUrl, until: Date.now() + 3000 * 1000 });
+    return data.signedUrl;
+  }
+
+  // 큰 사진은 줄여서 AI 와 저장소에 보내요 (긴 변 1568px, JPEG)
+  async function prepImage(file) {
+    let bmp;
+    try {
+      bmp = await createImageBitmap(file);
+    } catch (e) {
+      throw new Error('이 사진 형식은 읽을 수 없어요. JPG나 PNG로 다시 올려주세요');
+    }
+    const k = Math.min(1, 1568 / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * k);
+    canvas.height = Math.round(bmp.height * k);
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+    const b64 = await new Promise(r => {
+      const fr = new FileReader();
+      fr.onload = () => r(String(fr.result).split(',')[1]);
+      fr.readAsDataURL(blob);
+    });
+    return { blob, b64, url: URL.createObjectURL(blob) };
+  }
+
+  // ---------- AI 물어보기 ----------
+  let chat = [];
+  let chatBusy = false;
+  let chatDraft = '';
+
+  const SUGGESTIONS = [
+    '지금 먹는 약들 같이 먹여도 괜찮아?',
+    '유통기한 지난 약 먹여도 돼?',
+    '사람 진통제 먹여도 돼?',
+    '약을 안 먹으려고 할 때 먹이는 요령',
+  ];
+
+  function aiContext() {
+    const p = pet();
+    if (!p) return {};
+    const ws = sortedWeights();
+    return {
+      pet: { name: p.name, breed: p.breed, age: ageText(p.birthday), sex: p.sex, weight: ws.length ? String(ws[ws.length - 1].kg) : '', note: p.note },
+      meds: mine(state.meds).map(m => ({ name: m.name, purpose: m.purpose, dosage: m.dosage, status: m.status, deadline: medDeadline(m) })),
+    };
+  }
+
+  async function callAI(body) {
+    const { data, error } = await sb.functions.invoke('med-ai', { body });
+    if (error) {
+      let msg = error.message;
+      try {
+        const j = await error.context.json();
+        msg = j.error || j.message || msg;
+      } catch (e) { /* 본문 없음 */ }
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  const fmtAI = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+
+  function scanAsText(r) {
+    if (!r.found) return `사진 인식 결과: ${r.summary}`;
+    return '사진 인식 결과:\n' + r.medicines.map(m =>
+      `- ${m.name}: ${m.purpose} / 복용: ${m.dosage} / 주의: ${m.cautions}`).join('\n');
+  }
+
+  function chatHistory() {
+    const out = [];
+    for (const m of chat) {
+      let role, text;
+      if (m.role === 'user') { role = 'user'; text = m.text; }
+      else if (m.role === 'assistant') { role = 'assistant'; text = m.text; }
+      else if (m.role === 'scan') { role = 'assistant'; text = scanAsText(m.result); }
+      else continue;
+      const last = out[out.length - 1];
+      if (last && last.role === role) last.text += '\n\n' + text;
+      else out.push({ role, text });
+    }
+    return out;
+  }
+
+  async function sendAsk(text) {
+    text = text.trim();
+    if (!text || chatBusy) return;
+    chat.push({ role: 'user', text });
+    chat.push({ role: 'pending', text: '생각하고 있어요...' });
+    chatBusy = true;
+    chatDraft = '';
+    render();
+    try {
+      const r = await callAI({ mode: 'ask', messages: chatHistory(), context: aiContext() });
+      chat.splice(chat.length - 1, 1, { role: 'assistant', text: r.text, sources: r.sources || [] });
+    } catch (e) {
+      chat.splice(chat.length - 1, 1, { role: 'error', text: errText(e) });
+    }
+    chatBusy = false;
+    render();
+  }
+
+  async function startScan(file) {
+    if (mode !== 'cloud') {
+      toast('사진 인식은 로그인해야 쓸 수 있어요', 'bad');
+      return go('ask');
+    }
+    if (chatBusy) return toast('앞의 질문에 답하는 중이에요');
+    let photo;
+    try {
+      photo = await prepImage(file);
+    } catch (e) {
+      return toast(errText(e), 'bad');
+    }
+    tab = 'ask';
+    pref.set('tab', tab);
+    chat.push({ role: 'user', text: '이 약 뭐예요?', img: photo.url });
+    chat.push({ role: 'pending', text: '사진을 읽고 약 정보를 찾는 중이에요... (30초~1분)' });
+    chatBusy = true;
+    render();
+    try {
+      const r = await callAI({ mode: 'scan', image: photo.b64, mediaType: 'image/jpeg', context: aiContext() });
+      chat.splice(chat.length - 1, 1, { role: 'scan', result: r, photo, saved: [] });
+    } catch (e) {
+      chat.splice(chat.length - 1, 1, { role: 'error', text: errText(e) });
+    }
+    chatBusy = false;
+    render();
+  }
+
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  function scanToMed(r) {
+    const kinds = MED_FIELDS.find(f => f.name === 'kind').options;
+    const storages = MED_FIELDS.find(f => f.name === 'storage').options;
+    return {
+      name: r.name || '이름 모를 약',
+      kind: kinds.includes(r.kind) ? r.kind : '기타',
+      purpose: r.purpose,
+      dosage: r.dosage,
+      caution: r.cautions,
+      storage: storages.includes(r.storage) ? r.storage : '실온',
+      expiryDate: DATE_RE.test(r.expiry_date) ? r.expiry_date : '',
+      prescribedDate: DATE_RE.test(r.prescribed_date) ? r.prescribed_date : '',
+      hospital: r.hospital,
+      openedDate: '',
+      openDays: r.open_days > 0 ? String(r.open_days) : '',
+      status: '먹는 중',
+      memo: [r.notes, 'AI가 사진에서 정리한 정보예요. 처방 지시가 우선이에요.'].filter(Boolean).join('\n'),
+    };
+  }
+
+  // 사진은 한 번만 올리고, 같은 사진에서 나온 약들이 같이 써요
+  async function uploadScanPhoto(msg) {
+    if (msg.photoPath || !msg.photo) return msg.photoPath || '';
+    const path = `${user.id}/${uid()}.jpg`;
+    const { error } = await sb.storage.from('med-photos').upload(path, msg.photo.blob, { contentType: 'image/jpeg' });
+    if (error) {
+      toast('사진은 저장하지 못했어요 (약 정보는 저장돼요)', 'bad');
+      return '';
+    }
+    msg.photoPath = path;
+    return path;
+  }
+
+  async function saveScanMed(mi, i, edit) {
+    const msg = chat[mi];
+    const med = scanToMed(msg.result.medicines[i]);
+    const markSaved = () => { msg.saved.push(i); render(); };
+    try {
+      med.photoPath = await uploadScanPhoto(msg);
+      if (edit) return editMed(null, med, markSaved);
+      await upsert('meds', med);
+      markSaved();
+      toast(`${med.name} 약상자에 넣었어요!`);
+    } catch (e) {
+      toast(errText(e), 'bad');
+    }
+  }
+
+  function renderScan(m, mi) {
+    const r = m.result;
+    const row = (k, v) => (v ? `<div class="kv-row"><dt>${k}</dt><dd>${fmtAI(v)}</dd></div>` : '');
+    const conf = { high: '확실해요', medium: '아마도', low: '잘 모르겠어요' };
+    return `<div class="msg ai wide">
+      <div class="who">${sprite('bubble', 2)} 약 도우미</div>
+      <p>${fmtAI(r.summary || '')}</p>
+      ${(r.medicines || []).map((x, i) => `<div class="scan-med">
+        <div class="scan-head"><b>${esc(x.name)}</b><span class="tag">${esc(x.kind)}</span><span class="tag conf-${esc(x.confidence)}">${conf[x.confidence] || ''}</span></div>
+        <dl class="kv med-kv">
+          ${row('어디에 써요?', x.purpose)}${row('먹이는 법', x.dosage)}${row('주의사항', x.cautions)}
+          ${row('보관', x.storage)}${row('유통기한', DATE_RE.test(x.expiry_date) ? x.expiry_date : '')}${row('개봉 후', x.open_days > 0 ? `${x.open_days}일` : '')}
+          ${row('처방', [DATE_RE.test(x.prescribed_date) && x.prescribed_date, x.hospital].filter(Boolean).join(' · '))}${row('참고', x.notes)}
+        </dl>
+        <div class="med-actions">${m.saved.includes(i)
+          ? `<span class="saved">${sprite('sparkle', 2)} 약상자에 저장했어요</span>`
+          : `<button class="btn small" data-scan-save="${mi}:${i}:edit">고쳐서 저장</button>
+             <button class="btn small btn-ok" data-scan-save="${mi}:${i}">약상자에 저장</button>`}</div>
+      </div>`).join('')}
+      ${sourcesHTML(r.sources)}
+    </div>`;
+  }
+
+  const sourcesHTML = list => (list && list.length ? `<details class="sources"><summary>참고한 곳 ${list.length}개</summary><ul>${
+    list.map(x => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title || x.url)}</a></li>`).join('')}</ul></details>` : '');
+
+  function renderAsk() {
+    const head = `<h2 class="title">${sprite('bubble', 3)} 약 물어보기</h2>`;
+    if (mode !== 'cloud') {
+      return `<section class="panel welcome">${head}
+        <p>AI 약 도우미는 로그인해야 쓸 수 있어요.<br>사진 한 장으로 약 이름, 먹이는 법, 주의사항을 찾아줘요.</p>
+        ${sb ? '<button class="btn btn-ok" data-action="go-login">로그인하러 가기</button>'
+        : '<p class="muted">Supabase 연결이 필요해요 (docs/SETUP.md).</p>'}
+      </section>`;
+    }
+    const msgs = chat.map((m, i) => {
+      if (m.role === 'user') return `<div class="msg me">${m.img ? `<img src="${m.img}" alt="올린 약 사진">` : ''}<p>${esc(m.text)}</p></div>`;
+      if (m.role === 'scan') return renderScan(m, i);
+      if (m.role === 'pending') return `<div class="msg ai pending"><div class="who">${dog(2, petLook(pet()))} </div><p>${esc(m.text)}</p></div>`;
+      if (m.role === 'error') return `<div class="msg ai error"><p>${esc(m.text)}</p></div>`;
+      return `<div class="msg ai"><div class="who">${sprite('bubble', 2)} 약 도우미</div><p>${fmtAI(m.text)}</p>${sourcesHTML(m.sources)}</div>`;
+    }).join('');
+    return `<section class="panel ask">
+      <div class="head-row">${head}
+        ${chat.length ? '<button class="btn small" data-action="chat-clear">새 대화</button>' : ''}</div>
+      <div class="msgs" id="msgs">${msgs || `<div class="empty">${sprite('pill', 4)}
+        <p>약봉투·약병 사진을 올리거나 궁금한 걸 물어보세요.<br>${esc(pet()?.name || '우리 강아지')} 정보와 약상자를 참고해서 답해요.</p>
+        <div class="chips-row center">${SUGGESTIONS.map(q => `<button class="chip" data-suggest="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`}</div>
+      <form id="askForm" class="ask-form">
+        <label class="btn" title="약 사진 올리기">${sprite('camera', 2)}<span class="sr">사진</span><input type="file" class="photo-input" accept="image/*" hidden></label>
+        <input id="askInput" name="q" placeholder="예) 이 약 밥 먹기 전에 줘도 돼?" autocomplete="off" value="${esc(chatDraft)}" ${chatBusy ? 'disabled' : ''}>
+        <button class="btn btn-ok" type="submit" ${chatBusy ? 'disabled' : ''}>보내기</button>
+      </form>
+      <p class="disclaimer">AI 답변은 참고용이에요. 수의사 처방과 지시가 항상 먼저예요.</p>
+    </section>`;
   }
 
   // ---------- 가방(설정) ----------
@@ -727,7 +1052,7 @@
       </div>
       ${state.pets.length ? `<ul class="pet-list">${state.pets.map(p => `
         <li class="${p.id === pet().id ? 'current' : ''}">
-          <button class="pet-pick" data-pick="${p.id}">${dog(3, p.fur)}<span><b>${esc(p.name)}</b><small>${esc([p.breed, ageText(p.birthday)].filter(Boolean).join(' · '))}</small></span></button>
+          <button class="pet-pick" data-pick="${p.id}">${window.Pixel.dogStill(3, petLook(p))}<span><b>${esc(p.name)}</b><small>${esc([p.breed, ageText(p.birthday)].filter(Boolean).join(' · '))}</small></span></button>
           <button class="btn small" data-action="edit-pet" data-id="${p.id}">수정</button>
           <button class="btn small" data-action="del-pet" data-id="${p.id}">삭제</button>
         </li>`).join('')}</ul>` : '<p class="muted">아직 등록된 친구가 없어요.</p>'}
@@ -821,7 +1146,7 @@
   }
 
   // ---------- 렌더 ----------
-  const VIEWS = { home: renderHome, vaccines: renderVaccines, weights: renderWeights, meds: renderMeds, settings: renderSettings };
+  const VIEWS = { home: renderHome, vaccines: renderVaccines, weights: renderWeights, meds: renderMeds, ask: renderAsk, settings: renderSettings };
 
   function renderLogin() {
     return `<section class="panel welcome login">
@@ -884,6 +1209,10 @@
     if (pet() && state.activePetId !== pet().id) state.activePetId = pet().id;
     renderHeader();
     $('#main').innerHTML = (VIEWS[tab] || renderHome)();
+    if (tab === 'meds') hydratePhotos();
+    // 새 답은 첫 줄부터 읽을 수 있게 마지막 말풍선의 위쪽으로 스크롤해요
+    const msgs = $('#msgs');
+    if (msgs && msgs.lastElementChild) msgs.scrollTop = msgs.lastElementChild.offsetTop - 8;
   }
 
   function go(t) {
@@ -905,7 +1234,21 @@
     'del-weight': id => { const w = state.weights.find(x => x.id === id); remove('weights', id, `${fmt(w?.date)} ${w?.kg}kg`); },
     'add-med': () => editMed(),
     'edit-med': id => editMed(id),
-    'del-med': id => remove('meds', id, state.meds.find(x => x.id === id)?.name),
+    'del-med': async id => {
+      const m = state.meds.find(x => x.id === id);
+      if (!(await remove('meds', id, m?.name))) return;
+      // 같은 사진을 쓰는 약이 더 없으면 사진도 지워요
+      if (mode === 'cloud' && m?.photoPath && !state.meds.some(x => x.photoPath === m.photoPath)) {
+        sb.storage.from('med-photos').remove([m.photoPath]);
+      }
+    },
+    'ask-med': id => {
+      const m = state.meds.find(x => x.id === id);
+      chatDraft = `${m.name} 에 대해 더 알려줘. 먹일 때 주의할 점은?`;
+      go('ask');
+      $('#askInput')?.focus();
+    },
+    'chat-clear': () => { chat = []; render(); },
     'export': () => exportData(),
     'migrate': () => migrateLocal(),
     'reload': () => refresh(),
@@ -975,10 +1318,21 @@
       const f = e.target.closest('[data-medfilter]');
       if (f) { medFilter = f.dataset.medfilter; return render(); }
       const p = e.target.closest('[data-pick]');
-      if (p) { state.activePetId = p.dataset.pick; persist(); render(); }
+      if (p) { state.activePetId = p.dataset.pick; persist(); return render(); }
+      const sq = e.target.closest('[data-suggest]');
+      if (sq) return sendAsk(sq.dataset.suggest);
+      const ss = e.target.closest('[data-scan-save]');
+      if (ss) {
+        const [mi, i, edit] = ss.dataset.scanSave.split(':');
+        ss.disabled = true;
+        return saveScanMed(Number(mi), Number(i), !!edit);
+      }
+      const ph = e.target.closest('[data-photo]');
+      if (ph) photoUrl(ph.dataset.photo).then(url => window.open(url, '_blank', 'noopener')).catch(err => toast(errText(err), 'bad'));
     });
 
     $('#main').addEventListener('input', e => {
+      if (e.target.id === 'askInput') chatDraft = e.target.value;
       if (e.target.id !== 'medSearch') return;
       medQuery = e.target.value;
       const pos = e.target.selectionStart;
@@ -989,6 +1343,10 @@
     });
 
     $('#main').addEventListener('submit', e => {
+      if (e.target.id === 'askForm') {
+        e.preventDefault();
+        return sendAsk(e.target.q.value);
+      }
       if (e.target.id !== 'loginForm') return;
       e.preventDefault();
       handleAuth(e.target, e.submitter?.dataset.auth || 'in');
@@ -996,6 +1354,7 @@
 
     $('#main').addEventListener('change', e => {
       if (e.target.id === 'importFile' && e.target.files[0]) importData(e.target.files[0]);
+      if (e.target.classList.contains('photo-input') && e.target.files[0]) startScan(e.target.files[0]);
     });
 
     $('#petSwitch').addEventListener('change', e => {

@@ -30,48 +30,14 @@
   const FUR = {
     '흰색': { W: '#fffaf0', G: '#d9d0c3' },
     '크림': { W: '#f7deb0', G: '#d8b47c' },
+    '황금': { W: '#eab45a', G: '#c08434' },
     '갈색': { W: '#c4813f', G: '#8f5626' },
+    '초코': { W: '#7e4f30', G: '#563420' },
     '회색': { W: '#bdbdc8', G: '#8d8d9a' },
     '검정': { W: '#4b4242', G: '#2f2828' },
   };
 
   const S = {
-    dog: [
-      '................',
-      '..OO........OO..',
-      '.OGWO......OWGO.',
-      '.OGWWOOOOOOWWGO.',
-      '.OWWWWWWWWWWWWO.',
-      'OWWWWWWWWWWWWWWO',
-      'OWWBEWWWWWWBEWWO',
-      'OWWBBWWWWWWBBWWO',
-      'OWWWWWWWWWWWWWWO',
-      'OKKWWWWBBWWWWKKO',
-      '.OGWWWWBBWWWWGO.',
-      '.OWGWWWOOWWWGWO.',
-      '..OWWWWPPWWWWO..',
-      '..OOGWWPPWWGOO..',
-      '....OOOOOOOO....',
-      '................',
-    ],
-    dogBlink: [
-      '................',
-      '..OO........OO..',
-      '.OGWO......OWGO.',
-      '.OGWWOOOOOOWWGO.',
-      '.OWWWWWWWWWWWWO.',
-      'OWWWWWWWWWWWWWWO',
-      'OWWWWWWWWWWWWWWO',
-      'OWWBBWWWWWWBBWWO',
-      'OWWWWWWWWWWWWWWO',
-      'OKKWWWWBBWWWWKKO',
-      '.OGWWWWBBWWWWGO.',
-      '.OWGWWWOOWWWGWO.',
-      '..OWWWWPPWWWWO..',
-      '..OOGWWPPWWGOO..',
-      '....OOOOOOOO....',
-      '................',
-    ],
     syringe: [
       'O..OOOOOOOOOO...',
       'OGGOWWCCCCCCOO..',
@@ -186,6 +152,28 @@
       'Y.YYYYYY.Y',
       '....YY....',
       '...Y..Y...',
+    ],
+    camera: [
+      '...OOOO.....',
+      'OOOOWWOOOOOO',
+      'OGGGGGGGGGGO',
+      'OGGOOOOGGGGO',
+      'OGOCCCCOGRGO',
+      'OGOCSSCOGGGO',
+      'OGGOOOOGGGGO',
+      'OGGGGGGGGGGO',
+      'OOOOOOOOOOOO',
+    ],
+    bubble: [
+      '.OOOOOOOOOO.',
+      'OWWWWWWWWWWO',
+      'OWWWWWWWWWWO',
+      'OWBBWBBWBBWO',
+      'OWWWWWWWWWWO',
+      'OWWWWWWWWWWO',
+      '.OOOOWOOOOO.',
+      '....OWO.....',
+      '....OO......',
     ],
     cloud: [
       '.....WWWW.......',
@@ -303,13 +291,128 @@
     return `<span class="${cls}" style="width:${w * scale}px;height:${rows.length * scale}px" aria-hidden="true">${svg}</span>`;
   }
 
-  // 눈 깜빡이는 강아지
-  function dog(scale = 4, fur = '흰색') {
-    const pal = palette(fur);
+  // ---------- 조립식 강아지 ----------
+  // 머리 + 귀 + 무늬 + 얼굴을 겹쳐서 16x16 강아지 얼굴을 만들어요.
+  // 키: O 외곽선, W 털, G 털 그늘, X 무늬 색, A 귀 색, B 눈·코, E 눈빛, P 혀, K 볼터치
+  const HEADS = {
+    normal: [
+      '................',
+      '................',
+      '....OOOOOOOO....',
+      '..OOWWWWWWWWOO..',
+      '.OWWWWWWWWWWWWO.',
+      '.OWWWWWWWWWWWWO.',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      '.OWWWWWWWWWWWWO.',
+      '.OWWWWWWWWWWWWO.',
+      '..OWWWWWWWWWWO..',
+      '...OOWWWWWWOO...',
+      '.....OOOOOO.....',
+    ],
+    fluffy: [
+      '.....OOOOOO.....',
+      '...OOWWGWWWOO...',
+      '..OWWWWWWWGWWO..',
+      '.OWGWWWWWWWWWWO.',
+      '.OWWWWWWWWWWGWO.',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      'OWWWWWWWWWWWWWWO',
+      '.OWWWWWWWWWWWWO.',
+      '.OWGWWWWWWWWGWO.',
+      '..OOWWWWWWWWOO..',
+      '....OOOOOOOO....',
+    ],
+  };
+
+  // 왼쪽 귀만 그리고 오른쪽은 거울처럼 뒤집어요. [시작 줄, 줄들]
+  const EARS = {
+    pointy: [0, ['..OO....', '.OGWO...', '.OGWWO..', '.OGWWWW.', '.OWWWW..']],
+    bat: [0, ['.OO.....', 'OGWO....', 'OGWWO...', 'OGWWWO..', 'OGWWWWO.', '.OWWWW..']],
+    fold: [1, ['...OO...', '..OAAO..', '.OAAAO..', '.OAAO...', '..OO....']],
+    drop: [2, ['..OOO...', '.OAAAO..', 'OAAAO...', 'OAAAO...', 'OAAAO...', 'OAAAO...', 'OAAO....', '.OO.....']],
+    long: [3, ['.OOO....', 'OAAAO...', 'OAAAO...', 'OAAAO...', 'OAAAO...', 'OAAAO...', 'OAAAO...', 'OAAAO...', '.OAAO...', '..OO....']],
+  };
+
+  // 무늬: 털(W) 칸 중에서 이 영역을 무늬 색(X)으로 바꿔요
+  const inBox = (x, y, x1, x2, y1, y2) => x >= x1 && x <= x2 && y >= y1 && y <= y2;
+  const PATTERNS = {
+    solid: () => false,
+    muzzle: (x, y) => inBox(x, y, 3, 12, 10, 15) || inBox(x, y, 5, 10, 9, 9),
+    blaze: (x, y) => inBox(x, y, 7, 8, 0, 8) || inBox(x, y, 4, 11, 9, 15),
+    mask: (x, y) => inBox(x, y, 5, 10, 8, 13) || inBox(x, y, 3, 5, 6, 9) || inBox(x, y, 10, 12, 6, 9),
+    patch: (x, y) => inBox(x, y, 2, 6, 5, 9),
+    tan: (x, y) => inBox(x, y, 4, 5, 5, 5) || inBox(x, y, 10, 11, 5, 5) || inBox(x, y, 2, 5, 10, 13) || inBox(x, y, 10, 13, 10, 13),
+    spots: (x, y) => [[3, 4], [4, 4], [12, 6], [11, 12], [12, 12], [4, 12], [9, 3], [13, 9]].some(([a, b]) => a === x && b === y),
+    half: x => x < 8,
+  };
+
+  const FACES = {
+    normal: { nose: [[7, 9], [8, 9], [7, 10], [8, 10]], mouth: [[7, 11], [8, 11]], tongue: [[7, 12], [8, 12], [7, 13], [8, 13]] },
+    flat: { nose: [[7, 9], [8, 9]], mouth: [[6, 10], [7, 10], [8, 10], [9, 10]], tongue: [[7, 11], [8, 11]], wrinkle: [[6, 6], [9, 6]] },
+  };
+
+  const DEFAULT_LOOK = { ears: 'pointy', head: 'normal', face: 'normal', pattern: 'solid', fur: '흰색', fur2: '흰색', earColor: 'main' };
+
+  function dogGrid(look, blink) {
+    const L = Object.assign({}, DEFAULT_LOOK, look);
+    const g = (HEADS[L.head] || HEADS.normal).map(r => r.split(''));
+    const put = (x, y, c) => { if (g[y] && x >= 0 && x < 16) g[y][x] = c; };
+
+    const [top, rows] = EARS[L.ears] || EARS.pointy;
+    rows.forEach((half, i) => {
+      const full = half + half.split('').reverse().join('');
+      full.split('').forEach((c, x) => { if (c !== '.') put(x, top + i, c); });
+    });
+
+    const inPattern = PATTERNS[L.pattern] || PATTERNS.solid;
+    g.forEach((row, y) => row.forEach((c, x) => { if (c === 'W' && inPattern(x, y)) row[x] = 'X'; }));
+
+    const f = FACES[L.face] || FACES.normal;
+    if (blink) {
+      [[4, 8], [5, 8], [10, 8], [11, 8]].forEach(([x, y]) => put(x, y, 'B'));
+    } else {
+      [[4, 7], [4, 8], [5, 8], [10, 7], [10, 8], [11, 8]].forEach(([x, y]) => put(x, y, 'B'));
+      put(5, 7, 'E');
+      put(11, 7, 'E');
+    }
+    f.nose.forEach(([x, y]) => put(x, y, 'B'));
+    f.mouth.forEach(([x, y]) => put(x, y, 'O'));
+    f.tongue.forEach(([x, y]) => put(x, y, 'P'));
+    (f.wrinkle || []).forEach(([x, y]) => put(x, y, 'G'));
+    [[2, 10], [3, 10], [12, 10], [13, 10]].forEach(([x, y]) => put(x, y, 'K'));
+    return g.map(r => r.join(''));
+  }
+
+  function lookPalette(look) {
+    const L = Object.assign({}, DEFAULT_LOOK, look);
+    const main = FUR[L.fur] || FUR['흰색'];
+    const second = FUR[L.fur2] || FUR['흰색'];
+    return Object.assign({}, BASE, main, { X: second.W, A: L.earColor === 'second' ? second.W : main.G });
+  }
+
+  // 눈 깜빡이는 강아지. look 은 생김새 객체 (예전 데이터는 털 색 문자열)
+  function dog(scale = 4, look) {
+    if (typeof look === 'string') look = { fur: look };
+    const pal = lookPalette(look);
     const px = 16 * scale;
     return `<span class="dog" style="width:${px}px;height:${px}px" aria-hidden="true">` +
-      `<span class="dog-open">${toSVG(S.dog, pal)}</span>` +
-      `<span class="dog-blink">${toSVG(S.dogBlink, pal)}</span></span>`;
+      `<span class="dog-open">${toSVG(dogGrid(look, false), pal)}</span>` +
+      `<span class="dog-blink">${toSVG(dogGrid(look, true), pal)}</span></span>`;
+  }
+
+  // 고정된(깜빡이지 않는) 작은 강아지 — 선택지 미리보기용
+  function dogStill(scale = 3, look) {
+    const px = 16 * scale;
+    return `<span class="sprite" style="width:${px}px;height:${px}px" aria-hidden="true">${toSVG(dogGrid(look, false), lookPalette(look))}</span>`;
   }
 
   function installCSSVars() {
@@ -322,5 +425,5 @@
     }
   }
 
-  window.Pixel = { sprite, dog, installCSSVars, FUR: Object.keys(FUR) };
+  window.Pixel = { sprite, dog, dogStill, installCSSVars, FUR, DEFAULT_LOOK };
 })();

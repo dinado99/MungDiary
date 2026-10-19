@@ -58,6 +58,10 @@ create table if not exists public.meds (
   created_at      timestamptz not null default now()
 );
 
+-- v2: 강아지 생김새, 약 사진
+alter table public.pets add column if not exists look jsonb;
+alter table public.meds add column if not exists photo_path text;
+
 create index if not exists pets_user_idx     on public.pets (user_id);
 create index if not exists vaccines_pet_idx  on public.vaccines (pet_id);
 create index if not exists weights_pet_idx   on public.weights (pet_id);
@@ -105,3 +109,24 @@ create policy "own meds" on public.meds
   );
 
 grant select, insert, update, delete on public.pets, public.vaccines, public.weights, public.meds to authenticated;
+
+-- ---------- 약 사진 보관함 (Storage) ----------
+-- 비공개 버킷. 파일 경로가 "<내 user id>/..." 인 것만 올리고 보고 지울 수 있어요.
+insert into storage.buckets (id, name, public)
+values ('med-photos', 'med-photos', false)
+on conflict (id) do nothing;
+
+drop policy if exists "own med photos read" on storage.objects;
+create policy "own med photos read" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'med-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists "own med photos insert" on storage.objects;
+create policy "own med photos insert" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'med-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists "own med photos delete" on storage.objects;
+create policy "own med photos delete" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'med-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);

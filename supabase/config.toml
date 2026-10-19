@@ -1,0 +1,6 @@
+# Supabase CLI 설정 (Edge Function 배포용)
+project_id = "MungDiary"
+
+[functions.med-ai]
+# 함수 안에서 직접 로그인 여부를 확인해요 (새 JWT 서명 키와도 호환)
+verify_jwt = false

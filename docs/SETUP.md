@@ -1,12 +1,16 @@
 # 멍다이어리 설정 & 배포 가이드
 
 **Supabase**에 기록을 저장하고 **GitHub Pages**로 배포하는 순서예요. 처음부터 끝까지 30분 정도 걸려요.
+AI 약 도우미(사진 인식·물어보기)까지 쓰려면 [8단계](#8단계-ai-약-도우미-켜기-사진-인식--물어보기)를 추가로 해요 (15분).
 
 ```
 [ 브라우저 (GitHub Pages) ]  ──로그인/기록──▶  [ Supabase ]
    index.html, js, css                        Auth (이메일 로그인)
    js/config.js 에 URL + 공개키                 Postgres (pets, vaccines, weights, meds)
-                                               RLS: 내 기록만 읽고 쓰기
+                                               Storage (약 사진, 비공개)
+                                               RLS: 내 기록·사진만 읽고 쓰기
+                                               Edge Function med-ai ──▶ [ Claude API ]
+                                                 (Claude 키는 여기에만 보관)    + 웹 검색
 ```
 
 - 사이트는 정적 파일이라 GitHub Pages가 그냥 파일을 보여주기만 해요.
@@ -46,6 +50,8 @@
 모든 테이블에는 `user_id`가 있어요. 기록을 넣을 때 자동으로 **로그인한 사람의 id**가 들어가고, RLS 정책이 **자기 `user_id`인 행만** 읽고 쓰고 지울 수 있게 막아요. 강아지를 지우면 그 강아지의 접종·몸무게·약 기록도 같이 지워져요 (`on delete cascade`).
 
 > SQL은 여러 번 실행해도 안전해요. 나중에 스키마가 바뀌면 다시 붙여넣고 Run 하면 돼요.
+>
+> **이미 예전 버전 SQL을 실행했다면**: 최신 `schema.sql`을 한 번 더 실행하세요. 기존 기록은 그대로 두고 강아지 생김새(`look`), 약 사진(`photo_path`) 칸과 사진 보관함(`med-photos` 버킷)만 추가돼요. **Storage**에서 `med-photos` 버킷이 보이면 OK.
 
 ## 3단계. 로그인 설정
 
@@ -147,6 +153,54 @@ git push
 
 ---
 
+## 8단계. AI 약 도우미 켜기 (사진 인식 + 물어보기)
+
+약봉투·약병 사진을 올리면 AI(Claude)가 글자를 읽고, 웹에서 약 정보를 찾아 **용도·먹이는 법·주의사항·보관법·유통기한**을 정리해요. 그 결과를 **약상자에 바로 저장**할 수 있어요 (사진도 같이 저장돼요). **물어보기** 탭에서는 우리 강아지 정보와 약상자를 참고해서 질문에 답해요.
+
+```
+브라우저 ──(로그인 토큰 + 사진)──▶ Supabase Edge Function "med-ai" ──(API 키)──▶ Claude API
+```
+
+Claude API 키는 **비밀값**이라 웹페이지(`config.js`)에 넣으면 안 돼요. 그래서 Supabase Edge Function이 중간에서 키를 들고 대신 호출해요. 함수는 **로그인한 사람만** 쓸 수 있어요.
+
+### 8-1. Claude API 키 만들기
+1. <https://console.anthropic.com> 에 가입하고 로그인해요.
+2. **Billing**에서 크레딧을 충전해요. 처음엔 $5~10 정도면 충분해요.
+3. **Limits**(또는 Billing → Spend limits)에서 **월 사용 한도**를 정해두면 요금이 갑자기 많이 나올 걱정이 없어요.
+4. **API Keys → Create Key**로 키를 만들고 `sk-ant-...` 값을 복사해요. 이 키는 다시 볼 수 없으니 바로 다음 단계에 넣어요.
+5. 조직 설정에서 **웹 검색(Web search)** 이 꺼져 있다면 켜주세요. 꺼져 있으면 사진 인식 때 약 정보 검색이 안 돼요.
+
+> 💰 **요금 감**: 사진 1장 인식은 보통 약 정보 검색을 몇 번 해서 **수십~수백 원** 정도, 질문 하나는 그보다 적게 들어요 (검색량에 따라 달라요). 실제 사용량은 Console의 **Usage**에서 볼 수 있어요.
+
+### 8-2. 방법 A — 대시보드에서 배포 (설치 없이)
+1. Supabase 대시보드 → **Edge Functions** → **Secrets**(또는 Project Settings → Edge Functions)에서 **Add new secret**:
+   - Name: `ANTHROPIC_API_KEY` / Value: `sk-ant-...`
+2. **Edge Functions → Deploy a new function → Via Editor**를 눌러요.
+3. 함수 이름을 **`med-ai`** 로 정해요. 이름이 정확히 같아야 앱이 찾을 수 있어요.
+4. 에디터 내용을 지우고 이 저장소의 [`supabase/functions/med-ai/index.ts`](../supabase/functions/med-ai/index.ts) 내용을 전부 붙여넣은 뒤 **Deploy function**을 눌러요.
+5. 배포가 끝나면 함수의 **Details / Settings**에서 **Enforce JWT verification**(Verify JWT)을 **끄고** 저장해요.
+   로그인 확인은 함수 코드가 직접 해요. 이 옵션이 켜져 있으면 새 서명 키를 쓰는 프로젝트에서 401 오류가 날 수 있어요.
+
+### 8-2. 방법 B — Supabase CLI로 배포
+```sh
+npx supabase login                                   # 브라우저로 로그인
+npx supabase link --project-ref <프로젝트-ref>         # URL의 https://<ref>.supabase.co 부분
+npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+npx supabase functions deploy med-ai --no-verify-jwt
+```
+`supabase/config.toml`에 `verify_jwt = false`가 이미 들어 있어요.
+
+### 8-3. 확인
+1. 사이트에 로그인 → **약상자 → 사진으로 등록** (또는 **물어보기** 탭의 📷 버튼).
+2. 30초~1분 뒤 약 정보 카드가 뜨면 **약상자에 저장** 또는 **고쳐서 저장**을 눌러요.
+3. **물어보기**에서 "지금 먹는 약들 같이 먹여도 괜찮아?" 같은 질문도 해봐요.
+4. 잘 안 되면 대시보드 **Edge Functions → med-ai → Logs**에서 오류를 볼 수 있어요.
+
+### (선택) 다른 모델 쓰기
+기본 모델은 `claude-opus-5-5`예요. 비용을 줄이고 싶으면 Secret에 `CLAUDE_MODEL` = `claude-sonnet-5-5`를 추가하면 돼요. 함수를 다시 배포할 필요는 없어요.
+
+> ⚠ AI 답변은 참고용이에요. 약봉투·라벨에 적힌 **수의사 지시가 항상 먼저**이고, 응급 상황이면 바로 동물병원에 연락하세요.
+
 ## 문제 해결
 
 | 증상 | 원인 / 해결 |
@@ -158,6 +212,11 @@ git push
 | 인증 메일 링크를 누르면 localhost로 가요 | 3-2 **Site URL / Redirect URLs** 설정을 확인해주세요. |
 | "요청이 너무 많아요" | 메일 발송 한도에 걸렸어요. 1시간쯤 뒤에 다시 하거나 Confirm email을 꺼주세요. |
 | 갑자기 아무것도 안 불러와져요 | 무료 프로젝트가 일시정지됐을 수 있어요. 대시보드에서 **Restore project**를 눌러주세요. |
+| "AI 함수가 아직 배포되지 않았어요" | 8-2 단계를 안 했거나 함수 이름이 `med-ai`가 아니에요. |
+| AI가 "로그인이 필요해요"라고 해요 / 401 | 8-2의 **Verify JWT를 끄기**를 확인해주세요. 로그아웃 후 다시 로그인해도 돼요. |
+| "ANTHROPIC_API_KEY 설정을 확인해주세요" | Secret 이름이 정확한지, 키가 유효한지, Anthropic Console에 크레딧이 있는지 확인해주세요. |
+| 사진은 저장 안 되고 약 정보만 저장돼요 | `schema.sql`을 다시 실행해서 `med-photos` 버킷을 만들어주세요. |
+| "DB가 예전 버전이에요" | 최신 `schema.sql`을 다시 실행해주세요 (기존 기록은 지워지지 않아요). |
 | 기록을 엑셀처럼 보고 싶어요 | Supabase **Table Editor**에서 바로 보고 고칠 수 있어요. 오른쪽 위 **Export → CSV**도 돼요. |
 
 ## 파일 구조
@@ -166,8 +225,11 @@ git push
 index.html            페이지 뼈대
 css/style.css         픽셀 UI
 js/config.js          ← Supabase URL / 공개 키 (여기만 고치면 돼요)
-js/sprites.js         픽셀 그림
-js/app.js             화면, 로그인, 저장 로직 (localStore / cloudStore)
-supabase/schema.sql   ← SQL Editor 에 붙여넣을 스키마 + RLS
+js/sprites.js         픽셀 그림 + 조립식 강아지 얼굴
+js/looks.js           견종별 생김새 프리셋, 꾸미기 선택지
+js/app.js             화면, 로그인, 저장, AI 물어보기
+supabase/schema.sql   ← SQL Editor 에 붙여넣을 스키마 + RLS + 사진 보관함
+supabase/functions/med-ai/index.ts  ← AI 약 도우미 Edge Function
+supabase/config.toml  CLI 배포 설정
 docs/SETUP.md         이 문서
 ```
