@@ -204,7 +204,7 @@
     if (/rate limit/i.test(msg)) return '요청이 너무 많아요. 잠시 후 다시 해주세요';
     if (/Failed to fetch|NetworkError/i.test(msg)) return '인터넷 연결을 확인해주세요';
     if (/Requested function was not found|Function not found/i.test(msg)) return 'AI 함수가 아직 배포되지 않았어요 (docs/SETUP.md 8단계)';
-    if (/Failed to send a request to the Edge Function/i.test(msg)) return 'AI 서버에 연결하지 못했어요. 인터넷 연결을 확인해주세요';
+    if (/Failed to send a request to the Edge Function/i.test(msg)) return 'AI 답이 너무 오래 걸렸거나 연결이 끊겼어요. 다시 해주세요';
     if (/column .* does not exist|Could not find the '.*' column/i.test(msg)) return 'DB가 예전 버전이에요. schema.sql 을 다시 실행해주세요';
     if (/relation .* does not exist|Could not find the table/i.test(msg)) return 'DB 테이블이 없어요. schema.sql 을 실행했는지 확인해주세요';
     return `문제가 생겼어요: ${msg}`;
@@ -223,7 +223,7 @@
   const PET_FIELDS = [
     { name: 'look', label: '생김새', type: 'look', wide: true },
     { name: 'name', label: '이름', required: true, placeholder: '예) 개복치' },
-    { name: 'breed', label: '견종', placeholder: '예) 웨스티, 믹스견', list: window.Looks.BREEDS.map(b => b[0]) },
+    { name: 'breed', label: '견종 (선택)', placeholder: '몰라도 괜찮아요' },
     { name: 'birthday', label: '생일', type: 'date' },
     { name: 'sex', label: '성별', type: 'select', options: ['남아', '여아', '남아 (중성화)', '여아 (중성화)'] },
     { name: 'regNo', label: '동물등록번호', placeholder: '15자리' },
@@ -330,22 +330,18 @@
         form.elements[q.dataset.quick].value = addMonths(from, Number(q.dataset.months));
       }
       if (e.target.closest('[data-close]')) dlg.close();
-      const lk = e.target.closest('[data-look-key], [data-breed]');
+      const lk = e.target.closest('[data-look-key], [data-preset], [data-look-random]');
       if (lk) {
         const input = form.elements.look;
         let look = JSON.parse(input.value);
-        if (lk.dataset.breed != null) {
-          const [name, preset] = window.Looks.BREEDS[Number(lk.dataset.breed)];
-          look = Object.assign({}, preset);
-          if (form.elements.breed) form.elements.breed.value = name;
-        } else {
-          look[lk.dataset.lookKey] = lk.dataset.lookValue;
-        }
+        if (lk.dataset.preset != null) look = Object.assign({}, window.Looks.PRESETS[Number(lk.dataset.preset)]);
+        else if (lk.dataset.lookRandom != null) look = window.Looks.random();
+        else look[lk.dataset.lookKey] = lk.dataset.lookValue;
         input.value = JSON.stringify(look);
-        const scroller = $('.breeds .opts', form);
+        const scroller = $('.presets', form);
         const left = scroller ? scroller.scrollLeft : 0;
         $('.look-picker', form).innerHTML = lookPickerHTML(look);
-        $('.breeds .opts', form).scrollLeft = left;
+        $('.presets', form).scrollLeft = left;
       }
     });
     form.addEventListener('submit', async e => {
@@ -400,25 +396,33 @@
   // 예전 기록은 털 색(fur)만 있어서 기본 생김새에 덮어써요
   function petLook(p) {
     const look = p && typeof p.look === 'object' && p.look ? p.look : {};
-    return Object.assign({}, window.Pixel.DEFAULT_LOOK, p && p.fur ? { fur: p.fur } : {}, look);
+    return window.Pixel.normalizeLook(Object.assign(p && p.fur ? { fur: p.fur } : {}, look));
   }
 
+  // 이름 없이 그림만 보고 고르는 생김새 선택기
   function lookPickerHTML(look) {
-    const { OPTIONS, BREEDS } = window.Looks;
-    const still = l => window.Pixel.dogStill(3, l);
-    const row = (key, label) => `<div class="opt-row"><span class="opt-label">${label}</span><div class="opts">${
-      OPTIONS[key].map(([v, name]) => `<button type="button" class="opt ${look[key] === v ? 'on' : ''}" data-look-key="${key}" data-look-value="${v}">${
-        still(Object.assign({}, look, { [key]: v }))}<small>${name}</small></button>`).join('')}</div></div>`;
-    const colors = (key, label) => `<div class="opt-row"><span class="opt-label">${label}</span><div class="opts">${
-      Object.entries(window.Pixel.FUR).map(([name, c]) => `<button type="button" class="swatch ${look[key] === name ? 'on' : ''}" data-look-key="${key}" data-look-value="${name}" title="${name}" style="--c:${c.W};--d:${c.G}"><small>${name}</small></button>`).join('')}</div></div>`;
+    look = window.Pixel.normalizeLook(look);
+    const { PARTS, PRESETS } = window.Looks;
+    const still = (l, k = 3) => window.Pixel.dogStill(k, l);
+    const row = ([key, title, values]) => `<div class="opt-row"><span class="opt-label">${title}</span><div class="opts">${
+      values.map(v => `<button type="button" class="opt ${look[key] === v ? 'on' : ''}" data-look-key="${key}" data-look-value="${v}" aria-label="${title}">${
+        still(Object.assign({}, look, { [key]: v }))}</button>`).join('')}</div></div>`;
+    const colors = (key, title) => `<div class="opt-row"><span class="opt-label">${title}</span><div class="opts">${
+      Object.entries(window.Pixel.FUR).map(([name, c]) => `<button type="button" class="swatch ${look[key] === name ? 'on' : ''}" data-look-key="${key}" data-look-value="${name}" title="${name}" aria-label="${name}" style="--c:${c.W};--d:${c.G}"></button>`).join('')}</div></div>`;
+    const face = PARTS.slice(0, 5), more = PARTS.slice(5);
     return `<div class="look-top">
         <div class="look-preview">${dog(6, look)}</div>
-        <div class="breeds"><span class="opt-label">견종으로 고르기 (믹스·유기견도 OK)</span><div class="opts scroll">${
-          BREEDS.map(([name, l], i) => `<button type="button" class="opt breed" data-breed="${i}">${still(l)}<small>${esc(name)}</small></button>`).join('')}</div></div>
+        <div class="look-quick">
+          <button type="button" class="btn small" data-look-random>🎲 랜덤</button>
+          <div class="opts scroll presets">${PRESETS.map((l, i) => `<button type="button" class="opt" data-preset="${i}" aria-label="모습 ${i + 1}">${still(l, 3)}</button>`).join('')}</div>
+        </div>
       </div>
-      <details class="look-custom" open><summary>직접 꾸미기</summary>
-        ${row('ears', '귀')}${row('head', '털')}${row('face', '코')}${row('pattern', '무늬')}
-        ${colors('fur', '털 색')}${colors('fur2', '무늬 색')}${row('earColor', '귀 색')}
+      <details class="look-custom" open><summary>하나씩 바꾸기</summary>
+        ${colors('fur', '털 색')}
+        ${face.map(row).join('')}
+        ${row(more[0])}
+        ${colors('fur2', '무늬 색')}
+        ${more.slice(1).map(row).join('')}
       </details>`;
   }
 
@@ -761,6 +765,7 @@
         ${m.caution ? `<p class="caution">⚠ ${esc(m.caution)}</p>` : ''}
         ${m.memo ? `<p class="memo">${esc(m.memo)}</p>` : ''}
         <div class="med-actions">
+          ${searchLinks(m.name)}
           <button class="btn small" data-action="ask-med" data-id="${m.id}">${sprite('bubble', 1)} 물어보기</button>
           <button class="btn small" data-action="edit-med" data-id="${m.id}">수정</button>
           <button class="btn small" data-action="del-med" data-id="${m.id}">삭제</button>
@@ -995,6 +1000,7 @@
       <p>${fmtAI(r.summary || '')}</p>
       ${(r.medicines || []).map((x, i) => `<div class="scan-med">
         <div class="scan-head"><b>${esc(x.name)}</b><span class="tag">${esc(x.kind)}</span><span class="tag conf-${esc(x.confidence)}">${conf[x.confidence] || ''}</span></div>
+        ${searchLinks(x.name)}
         <dl class="kv med-kv">
           ${row('어디에 써요?', x.purpose)}${row('먹이는 법', x.dosage)}${row('주의사항', x.cautions)}
           ${row('보관', x.storage)}${row('유통기한', DATE_RE.test(x.expiry_date) ? x.expiry_date : '')}${row('개봉 후', x.open_days > 0 ? `${x.open_days}일` : '')}
@@ -1007,6 +1013,15 @@
       </div>`).join('')}
       ${sourcesHTML(r.sources)}
     </div>`;
+  }
+
+  // 인터넷 검색은 무료 AI 에서 막힌 경우가 많아서, 바로 찾아볼 수 있는 버튼을 달아요
+  function searchLinks(name) {
+    const q = encodeURIComponent(`${String(name || '').split('(')[0].trim()} 강아지 약`);
+    if (!name) return '';
+    return `<div class="search-links">
+      <a class="chip" href="https://search.naver.com/search.naver?query=${q}" target="_blank" rel="noopener">네이버에서 찾기</a>
+      <a class="chip" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">구글에서 찾기</a></div>`;
   }
 
   const sourcesHTML = list => (list && list.length ? `<details class="sources"><summary>참고한 곳 ${list.length}개</summary><ul>${

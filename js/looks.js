@@ -1,50 +1,63 @@
-// 강아지 생김새 선택지와 견종별 기본 생김새
+// 강아지 생김새 선택지 — 이름(견종) 없이 그림으로 골라요
 (() => {
   'use strict';
 
-  const OPTIONS = {
-    ears: [['pointy', '쫑긋'], ['bat', '큰 귀'], ['fold', '접힌 귀'], ['drop', '늘어진 귀'], ['long', '긴 털 귀']],
-    head: [['normal', '짧은 털'], ['fluffy', '복슬복슬']],
-    face: [['normal', '보통 코'], ['flat', '납작 코']],
-    pattern: [
-      ['solid', '단색'], ['muzzle', '주둥이'], ['blaze', '가운데 줄'], ['mask', '마스크'],
-      ['patch', '눈 반점'], ['tan', '눈썹·볼'], ['spots', '점박이'], ['half', '반반'],
-    ],
-    earColor: [['main', '털 색'], ['second', '무늬 색']],
-  };
-
-  const L = (ears, head, face, pattern, fur, fur2 = '흰색', earColor = 'main') =>
-    ({ ears, head, face, pattern, fur, fur2, earColor });
-
-  // 많이 키우는 견종 + 믹스 예시. 고른 뒤 귀·무늬·색을 마음대로 바꿀 수 있어요.
-  const BREEDS = [
-    ['믹스견', L('fold', 'normal', 'normal', 'half', '갈색', '흰색')],
-    ['믹스견 (황구)', L('pointy', 'normal', 'normal', 'muzzle', '황금', '크림')],
-    ['믹스견 (흑구)', L('fold', 'normal', 'normal', 'tan', '검정', '갈색')],
-    ['믹스견 (점박이)', L('drop', 'normal', 'normal', 'spots', '흰색', '초코')],
-    ['말티즈', L('long', 'fluffy', 'normal', 'solid', '흰색')],
-    ['푸들', L('long', 'fluffy', 'normal', 'solid', '갈색')],
-    ['비숑 프리제', L('drop', 'fluffy', 'normal', 'solid', '흰색')],
-    ['포메라니안', L('pointy', 'fluffy', 'normal', 'muzzle', '황금', '크림')],
-    ['시츄', L('long', 'fluffy', 'flat', 'blaze', '황금', '흰색')],
-    ['치와와', L('bat', 'normal', 'normal', 'muzzle', '크림', '흰색')],
-    ['요크셔테리어', L('pointy', 'fluffy', 'normal', 'tan', '회색', '황금')],
-    ['웨스트 하이랜드 화이트 테리어', L('pointy', 'fluffy', 'normal', 'solid', '흰색')],
-    ['진돗개', L('pointy', 'normal', 'normal', 'solid', '흰색')],
-    ['시바견', L('pointy', 'normal', 'normal', 'muzzle', '갈색', '흰색')],
-    ['웰시코기', L('bat', 'normal', 'normal', 'blaze', '황금', '흰색')],
-    ['골든 리트리버', L('drop', 'normal', 'normal', 'solid', '황금')],
-    ['래브라도 리트리버', L('drop', 'normal', 'normal', 'solid', '검정')],
-    ['비글', L('drop', 'normal', 'normal', 'blaze', '갈색', '흰색')],
-    ['닥스훈트', L('drop', 'normal', 'normal', 'tan', '검정', '갈색')],
-    ['보더콜리', L('fold', 'normal', 'normal', 'blaze', '검정', '흰색')],
-    ['잭 러셀 테리어', L('fold', 'normal', 'normal', 'patch', '흰색', '갈색', 'second')],
-    ['슈나우저', L('fold', 'normal', 'normal', 'muzzle', '회색', '흰색')],
-    ['시베리안 허스키', L('pointy', 'normal', 'normal', 'blaze', '회색', '흰색')],
-    ['사모예드', L('pointy', 'fluffy', 'normal', 'solid', '흰색')],
-    ['프렌치 불독', L('bat', 'normal', 'flat', 'solid', '크림')],
-    ['퍼그', L('fold', 'normal', 'flat', 'mask', '크림', '검정', 'second')],
+  // [키, 행 제목, 값 목록]
+  const PARTS = [
+    ['head', '털', ['normal', 'fluffy', 'terrier']],
+    ['ears', '귀', ['pointy', 'bat', 'fold', 'drop', 'long']],
+    ['eyes', '눈', ['dot', 'big', 'happy', 'sleepy']],
+    ['face', '코', ['normal', 'flat']],
+    ['mouth', '입', ['tongue', 'smile', 'open', 'closed']],
+    ['pattern', '무늬', ['solid', 'muzzle', 'blaze', 'mask', 'patch', 'patchR', 'tan', 'spots', 'half']],
+    ['earColor', '귀 색', ['main', 'second']],
+    ['blush', '볼터치', ['on', 'off']],
+    ['acc', '꾸미기', ['none', 'bow', 'flower', 'scarf', 'collar']],
   ];
 
-  window.Looks = { OPTIONS, BREEDS };
+  const L = (head, ears, eyes, face, mouth, pattern, fur, fur2 = fur, earColor = 'main', acc = 'none') =>
+    ({ head, ears, eyes, face, mouth, pattern, fur, fur2, earColor, blush: 'on', acc });
+
+  // 바로 고를 수 있는 모습들
+  const PRESETS = [
+    L('terrier', 'pointy', 'dot', 'normal', 'tongue', 'solid', '흰색'),
+    L('terrier', 'fold', 'big', 'normal', 'closed', 'muzzle', '회색', '흰색'),
+    L('terrier', 'pointy', 'dot', 'normal', 'tongue', 'tan', '회색', '황금'),
+    L('terrier', 'fold', 'big', 'normal', 'open', 'solid', '검정'),
+    L('terrier', 'drop', 'dot', 'normal', 'tongue', 'patch', '흰색', '갈색', 'second'),
+    L('fluffy', 'pointy', 'dot', 'normal', 'tongue', 'solid', '흰색'),
+    L('fluffy', 'pointy', 'dot', 'normal', 'tongue', 'muzzle', '황금', '크림'),
+    L('fluffy', 'long', 'big', 'normal', 'tongue', 'solid', '흰색', '흰색', 'main', 'bow'),
+    L('fluffy', 'long', 'dot', 'normal', 'smile', 'solid', '갈색', '갈색', 'main', 'flower'),
+    L('fluffy', 'drop', 'big', 'normal', 'tongue', 'solid', '살구', '살구', 'main', 'bow'),
+    L('normal', 'fold', 'dot', 'normal', 'tongue', 'patch', '흰색', '갈색', 'second'),
+    L('normal', 'pointy', 'happy', 'normal', 'smile', 'muzzle', '레드', '흰색'),
+    L('normal', 'drop', 'dot', 'normal', 'tongue', 'blaze', '갈색', '흰색'),
+    L('normal', 'bat', 'big', 'normal', 'closed', 'muzzle', '크림', '흰색'),
+    L('normal', 'bat', 'dot', 'normal', 'tongue', 'blaze', '황금', '흰색'),
+    L('normal', 'fold', 'dot', 'flat', 'tongue', 'mask', '크림', '검정', 'second'),
+    L('normal', 'bat', 'big', 'flat', 'closed', 'solid', '크림'),
+    L('normal', 'drop', 'happy', 'normal', 'open', 'solid', '황금', '황금', 'main', 'scarf'),
+    L('normal', 'fold', 'dot', 'normal', 'tongue', 'blaze', '검정', '흰색'),
+    L('normal', 'pointy', 'dot', 'normal', 'smile', 'blaze', '은회색', '흰색'),
+    L('normal', 'fold', 'happy', 'normal', 'tongue', 'half', '갈색', '흰색', 'main', 'collar'),
+    L('normal', 'drop', 'dot', 'normal', 'tongue', 'spots', '흰색', '검정', 'second'),
+    L('normal', 'pointy', 'sleepy', 'normal', 'closed', 'solid', '흰색'),
+    L('normal', 'drop', 'dot', 'normal', 'tongue', 'tan', '검정', '갈색', 'main', 'collar'),
+    L('normal', 'fold', 'big', 'normal', 'tongue', 'solid', '초코', '초코', 'main', 'scarf'),
+  ];
+
+  function random() {
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    const look = {};
+    for (const [key, , values] of PARTS) look[key] = pick(values);
+    const furs = Object.keys(window.Pixel.FUR);
+    look.fur = pick(furs);
+    look.fur2 = pick(furs);
+    if (Math.random() < 0.6) look.acc = 'none';
+    look.blush = 'on';
+    return look;
+  }
+
+  window.Looks = { PARTS, PRESETS, random };
 })();

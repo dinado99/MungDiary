@@ -24,22 +24,42 @@ function ctxText(c: Ctx = {}) {
   return out.filter(Boolean).join("\n").slice(0, 6000);
 }
 
+// 무료 사용량은 계정·모델마다 달라요. 막히거나(429) 붐비면(503) 다음 모델로 넘어가요.
+// 구글 검색 연동은 무료 한도가 0인 계정이 많아서 기본은 끄고, GEMINI_SEARCH=on 이면 켜요.
+const SEARCH = env("GEMINI_SEARCH") === "on";
+const MODELS = [...new Set([MODEL, "gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-2.5-flash"])];
+const RETRY = [404, 429, 500, 503, 504];
+
 async function gemini(system: string, contents: unknown[]) {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": KEY },
-    body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents, tools: [{ google_search: {} }] }),
-  });
-  const d = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    console.error("gemini", res.status, d?.error?.message);
+  let status = 0, d: any = {};
+  for (const m of MODELS) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": KEY },
+        body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents, ...(SEARCH ? { tools: [{ google_search: {} }] } : {}) }),
+        signal: AbortSignal.timeout(35000),
+      });
+      status = res.status;
+      d = await res.json().catch(() => ({}));
+      if (res.ok) break;
+      console.error("gemini", m, status, d?.error?.message);
+    } catch (e) {
+      status = 504;
+      console.error("gemini", m, "timeout", String(e));
+    }
+    if (!RETRY.includes(status)) break;
+  }
+  if (status !== 200) {
     const msg: Record<number, string> = {
-      429: "오늘 무료 AI 사용량을 다 썼거나 요청이 너무 많아요. 잠시 후 다시 해주세요",
-      404: `Gemini 모델(${MODEL})을 찾을 수 없어요. GEMINI_MODEL 설정을 확인해주세요`,
+      429: "무료 AI 사용량이 잠깐 다 찼어요. 1~2분 뒤에 다시 해주세요",
+      503: "구글 AI가 지금 사람이 많아서 바빠요. 잠시 후 다시 해주세요",
+      504: "AI 답이 너무 오래 걸렸어요. 다시 해주세요",
+      404: "쓸 수 있는 AI 모델을 찾지 못했어요",
       401: "Gemini가 API 키를 거부했어요. 키를 다시 넣거나 새 키를 만들어주세요",
       403: "GEMINI_API_KEY 설정을 확인해주세요",
     };
-    throw { status: res.status === 429 ? 429 : 500, message: msg[res.status] ?? `AI 서버 오류 (${res.status})` };
+    throw { status: status === 429 ? 429 : 500, message: msg[status] ?? `AI 서버 오류가 났어요 (${status}). 잠시 후 다시 해주세요` };
   }
   const cand = d.candidates?.[0] ?? {};
   const text = (cand.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("").trim();
