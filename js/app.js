@@ -403,15 +403,15 @@
   function lookPickerHTML(look) {
     look = window.Pixel.normalizeLook(look);
     const { PARTS, PRESETS } = window.Looks;
-    const still = (l, k = 2) => window.Pixel.dogStill(k, l);
+    const still = (l, k = 3) => window.Pixel.dogStill(k, l);
     const row = ([key, title, values]) => `<div class="opt-row"><span class="opt-label">${title}</span><div class="opts">${
       values.map(v => `<button type="button" class="opt ${look[key] === v ? 'on' : ''}" data-look-key="${key}" data-look-value="${v}" aria-label="${title}">${
         still(Object.assign({}, look, { [key]: v }))}</button>`).join('')}</div></div>`;
     const colors = (key, title) => `<div class="opt-row"><span class="opt-label">${title}</span><div class="opts">${
       Object.entries(window.Pixel.FUR).map(([name, c]) => `<button type="button" class="swatch ${look[key] === name ? 'on' : ''}" data-look-key="${key}" data-look-value="${name}" title="${name}" aria-label="${name}" style="--c:${c.W};--d:${c.G}"></button>`).join('')}</div></div>`;
-    const face = PARTS.slice(0, 7), more = PARTS.slice(7);
+    const face = PARTS.slice(0, 5), more = PARTS.slice(5);
     return `<div class="look-top">
-        <div class="look-preview">${dog(5, look)}</div>
+        <div class="look-preview">${dog(6, look)}</div>
         <div class="look-quick">
           <button type="button" class="btn small" data-look-random>🎲 랜덤</button>
           <div class="opts scroll presets">${PRESETS.map((l, i) => `<button type="button" class="opt" data-preset="${i}" aria-label="모습 ${i + 1}">${still(l, 3)}</button>`).join('')}</div>
@@ -474,7 +474,7 @@
     const p = pet();
     const { season, day, wd } = seasonDate();
     $('#clock').innerHTML = `<div class="clock-day">${wd}. ${day}</div><div class="clock-season">${sprite('sun', 2)}${season} ${day}일</div>`;
-    $('#buddy').innerHTML = dog(4, p && petLook(p)) + '<span class="shadow"></span>';
+    $('#buddy').innerHTML = dog(5, p && petLook(p)) + '<span class="shadow"></span>';
     $('#signSub').textContent = p ? `${p.name}의 건강 수첩` : '우리 강아지 건강 수첩';
     const sw = $('#petSwitch');
     if (state.pets.length > 1) {
@@ -524,7 +524,7 @@
     const p = pet();
     if (!p) {
       return `<section class="panel welcome">
-        ${dog(6)}
+        ${dog(8)}
         <h2>멍다이어리에 오신 걸 환영해요!</h2>
         <p>접종 기록, 몸무게 변화, 처방받은 약까지<br>병원 갈 때마다 헷갈리던 것들을 여기 모아둬요.</p>
         <button class="btn btn-ok big" data-action="add-pet">${sprite('paw', 2)} 첫 친구 등록하기</button>
@@ -539,7 +539,7 @@
 
     return `<div class="grid-2">
       <section class="panel pet-card">
-        <div class="pet-portrait">${dog(5, petLook(p))}</div>
+        <div class="pet-portrait">${dog(6, petLook(p))}</div>
         <div class="pet-info">
           <h2>${esc(p.name)} ${sprite('heart', 2)}</h2>
           <dl class="kv">
@@ -1067,7 +1067,7 @@
       </div>
       ${state.pets.length ? `<ul class="pet-list">${state.pets.map(p => `
         <li class="${p.id === pet().id ? 'current' : ''}">
-          <button class="pet-pick" data-pick="${p.id}">${window.Pixel.dogStill(2, petLook(p))}<span><b>${esc(p.name)}</b><small>${esc([p.breed, ageText(p.birthday)].filter(Boolean).join(' · '))}</small></span></button>
+          <button class="pet-pick" data-pick="${p.id}">${window.Pixel.dogStill(3, petLook(p))}<span><b>${esc(p.name)}</b><small>${esc([p.breed, ageText(p.birthday)].filter(Boolean).join(' · '))}</small></span></button>
           <button class="btn small" data-action="edit-pet" data-id="${p.id}">수정</button>
           <button class="btn small" data-action="del-pet" data-id="${p.id}">삭제</button>
         </li>`).join('')}</ul>` : '<p class="muted">아직 등록된 친구가 없어요.</p>'}
@@ -1165,7 +1165,7 @@
 
   function renderLogin() {
     return `<section class="panel welcome login">
-      ${dog(6)}
+      ${dog(8)}
       <h2>멍다이어리에 로그인</h2>
       <p>로그인하면 폰·컴퓨터 어디서든 같은 기록을 볼 수 있어요.</p>
       <form id="loginForm" class="login-form">
@@ -1217,7 +1217,7 @@
       renderHeader();
       $$('.tab').forEach(t => { t.disabled = true; });
       $('#main').innerHTML = mode === 'login' ? renderLogin()
-        : `<section class="panel welcome">${dog(6)}<p>기록을 불러오는 중...</p></section>`;
+        : `<section class="panel welcome">${dog(8)}<p>기록을 불러오는 중...</p></section>`;
       return;
     }
     if (!pet() && tab !== 'settings') tab = 'home';

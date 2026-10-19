@@ -147,7 +147,7 @@ h1, h2, h3 { font-family: var(--font-title); font-weight: 400; margin: 0; }
 .clock-season { display: flex; align-items: center; gap: 4px; }
 
 .buddy {
-  position: absolute; left: 50%; bottom: 14px; margin-left: -44px;
+  position: absolute; left: 50%; bottom: 16px; margin-left: -40px;
   cursor: pointer;
   animation: hop 1.6s steps(2) infinite;
 }

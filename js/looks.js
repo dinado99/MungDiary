@@ -4,46 +4,47 @@
 
   // [키, 행 제목, 값 목록]
   const PARTS = [
-    ['shape', '얼굴형', ['round', 'long', 'wide', 'small']],
-    ['coat', '털', ['smooth', 'fluffy', 'topknot', 'beard']],
-    ['ears', '귀', ['pointy', 'bat', 'round', 'fold', 'drop', 'long']],
-    ['eyes', '눈', ['dot', 'big', 'shiny', 'sleepy', 'happy']],
-    ['muzzle', '주둥이', ['short', 'long', 'flat']],
-    ['nose', '코', ['small', 'big', 'pink']],
-    ['mouth', '입', ['tongue', 'smile', 'open', 'calm']],
-    ['pattern', '무늬', ['solid', 'muzzle', 'blaze', 'mask', 'patchL', 'patchR', 'tan', 'spots', 'half']],
-    ['earColor', '귀 색', ['same', 'dark', 'second']],
+    ['head', '털', ['normal', 'fluffy', 'terrier']],
+    ['ears', '귀', ['pointy', 'bat', 'fold', 'drop', 'long']],
+    ['eyes', '눈', ['dot', 'big', 'happy', 'sleepy']],
+    ['face', '코', ['normal', 'flat']],
+    ['mouth', '입', ['tongue', 'smile', 'open', 'closed']],
+    ['pattern', '무늬', ['solid', 'muzzle', 'blaze', 'mask', 'patch', 'patchR', 'tan', 'spots', 'half']],
+    ['earColor', '귀 색', ['main', 'second']],
     ['blush', '볼터치', ['on', 'off']],
-    ['acc', '꾸미기', ['none', 'bow', 'flower', 'scarf']],
+    ['acc', '꾸미기', ['none', 'bow', 'flower', 'scarf', 'collar']],
   ];
 
-  const L = (shape, coat, ears, eyes, muzzle, nose, mouth, pattern, fur, fur2, earColor = 'same', acc = 'none') =>
-    ({ shape, coat, ears, eyes, muzzle, nose, mouth, pattern, fur, fur2, earColor, blush: 'on', acc });
+  const L = (head, ears, eyes, face, mouth, pattern, fur, fur2 = fur, earColor = 'main', acc = 'none') =>
+    ({ head, ears, eyes, face, mouth, pattern, fur, fur2, earColor, blush: 'on', acc });
 
-  // 바로 고를 수 있는 다양한 모습
+  // 바로 고를 수 있는 모습들
   const PRESETS = [
-    L('round', 'fluffy', 'pointy', 'dot', 'short', 'small', 'tongue', 'solid', '흰색', '흰색'),
-    L('long', 'smooth', 'fold', 'big', 'long', 'big', 'smile', 'half', '갈색', '흰색', 'dark'),
-    L('round', 'smooth', 'pointy', 'sleepy', 'short', 'small', 'calm', 'muzzle', '황금', '크림'),
-    L('wide', 'smooth', 'fold', 'happy', 'long', 'big', 'open', 'tan', '검정', '갈색', 'dark'),
-    L('small', 'fluffy', 'drop', 'shiny', 'short', 'small', 'tongue', 'solid', '흰색', '흰색', 'same', 'bow'),
-    L('long', 'smooth', 'drop', 'dot', 'long', 'big', 'smile', 'blaze', '레드', '흰색', 'dark'),
-    L('round', 'topknot', 'long', 'big', 'short', 'small', 'tongue', 'solid', '살구', '살구', 'same', 'bow'),
-    L('wide', 'smooth', 'bat', 'big', 'flat', 'big', 'calm', 'solid', '크림', '크림'),
-    L('wide', 'smooth', 'fold', 'big', 'flat', 'big', 'tongue', 'mask', '크림', '검정', 'second'),
-    L('long', 'beard', 'fold', 'dot', 'long', 'big', 'calm', 'muzzle', '회색', '흰색', 'dark'),
-    L('round', 'smooth', 'pointy', 'dot', 'long', 'small', 'smile', 'blaze', '은회색', '흰색'),
-    L('small', 'smooth', 'bat', 'shiny', 'short', 'pink', 'tongue', 'muzzle', '크림', '흰색'),
-    L('round', 'smooth', 'drop', 'happy', 'short', 'big', 'open', 'patchL', '흰색', '갈색', 'second', 'scarf'),
-    L('long', 'smooth', 'fold', 'big', 'long', 'big', 'smile', 'blaze', '검정', '흰색'),
-    L('round', 'smooth', 'round', 'big', 'short', 'small', 'tongue', 'solid', '초코', '초코', 'same', 'flower'),
-    L('round', 'smooth', 'pointy', 'happy', 'short', 'small', 'smile', 'muzzle', '레드', '흰색'),
-    L('wide', 'fluffy', 'pointy', 'dot', 'short', 'small', 'open', 'solid', '흰색', '흰색', 'same', 'scarf'),
-    L('round', 'smooth', 'drop', 'dot', 'short', 'big', 'tongue', 'spots', '흰색', '검정', 'second'),
-    L('long', 'smooth', 'drop', 'sleepy', 'long', 'big', 'calm', 'solid', '황금', '황금', 'dark'),
-    L('small', 'topknot', 'long', 'shiny', 'short', 'pink', 'smile', 'blaze', '흰색', '황금', 'second', 'bow'),
-    L('round', 'smooth', 'fold', 'big', 'short', 'big', 'tongue', 'tan', '초코', '황금', 'dark'),
-    L('wide', 'smooth', 'pointy', 'dot', 'long', 'big', 'smile', 'patchR', '회색', '흰색', 'same', 'scarf'),
+    L('terrier', 'pointy', 'dot', 'normal', 'tongue', 'solid', '흰색'),
+    L('terrier', 'fold', 'big', 'normal', 'closed', 'muzzle', '회색', '흰색'),
+    L('terrier', 'pointy', 'dot', 'normal', 'tongue', 'tan', '회색', '황금'),
+    L('terrier', 'fold', 'big', 'normal', 'open', 'solid', '검정'),
+    L('terrier', 'drop', 'dot', 'normal', 'tongue', 'patch', '흰색', '갈색', 'second'),
+    L('fluffy', 'pointy', 'dot', 'normal', 'tongue', 'solid', '흰색'),
+    L('fluffy', 'pointy', 'dot', 'normal', 'tongue', 'muzzle', '황금', '크림'),
+    L('fluffy', 'long', 'big', 'normal', 'tongue', 'solid', '흰색', '흰색', 'main', 'bow'),
+    L('fluffy', 'long', 'dot', 'normal', 'smile', 'solid', '갈색', '갈색', 'main', 'flower'),
+    L('fluffy', 'drop', 'big', 'normal', 'tongue', 'solid', '살구', '살구', 'main', 'bow'),
+    L('normal', 'fold', 'dot', 'normal', 'tongue', 'patch', '흰색', '갈색', 'second'),
+    L('normal', 'pointy', 'happy', 'normal', 'smile', 'muzzle', '레드', '흰색'),
+    L('normal', 'drop', 'dot', 'normal', 'tongue', 'blaze', '갈색', '흰색'),
+    L('normal', 'bat', 'big', 'normal', 'closed', 'muzzle', '크림', '흰색'),
+    L('normal', 'bat', 'dot', 'normal', 'tongue', 'blaze', '황금', '흰색'),
+    L('normal', 'fold', 'dot', 'flat', 'tongue', 'mask', '크림', '검정', 'second'),
+    L('normal', 'bat', 'big', 'flat', 'closed', 'solid', '크림'),
+    L('normal', 'drop', 'happy', 'normal', 'open', 'solid', '황금', '황금', 'main', 'scarf'),
+    L('normal', 'fold', 'dot', 'normal', 'tongue', 'blaze', '검정', '흰색'),
+    L('normal', 'pointy', 'dot', 'normal', 'smile', 'blaze', '은회색', '흰색'),
+    L('normal', 'fold', 'happy', 'normal', 'tongue', 'half', '갈색', '흰색', 'main', 'collar'),
+    L('normal', 'drop', 'dot', 'normal', 'tongue', 'spots', '흰색', '검정', 'second'),
+    L('normal', 'pointy', 'sleepy', 'normal', 'closed', 'solid', '흰색'),
+    L('normal', 'drop', 'dot', 'normal', 'tongue', 'tan', '검정', '갈색', 'main', 'collar'),
+    L('normal', 'fold', 'big', 'normal', 'tongue', 'solid', '초코', '초코', 'main', 'scarf'),
   ];
 
   function random() {
@@ -53,7 +54,8 @@
     const furs = Object.keys(window.Pixel.FUR);
     look.fur = pick(furs);
     look.fur2 = pick(furs);
-    look.acc = Math.random() < 0.7 ? 'none' : look.acc;
+    if (Math.random() < 0.6) look.acc = 'none';
+    look.blush = 'on';
     return look;
   }
 
