@@ -169,7 +169,7 @@ AI 키는 **비밀값**이라 웹페이지(`config.js`)에 넣으면 안 돼요.
 ### 8-1. 무료 Gemini API 키 만들기 (카드 등록 없음)
 1. <https://aistudio.google.com> 에 구글 계정으로 로그인해요.
 2. 왼쪽 메뉴 **Get API key → Create API key**를 눌러요. 프로젝트를 고르라고 하면 새로 만들면 돼요.
-3. 만들어진 키(`AIza...`)를 복사해요.
+3. 만들어진 키를 복사해요. 요즘 새로 만든 키는 **`AQ.`** 으로 시작해요(예전 키는 `AIza...`). 둘 다 그대로 넣으면 돼요.
 4. **결제(Billing)는 연결하지 마세요.** 연결하지 않으면 무료 사용량 안에서만 동작하고, 돈이 나갈 일이 없어요.
 
 > ℹ️ 무료 사용량은 하루·분당 횟수 제한이 있어요. 혼자 쓰기엔 보통 충분하고, 넘으면 "오늘 무료 AI 사용량을 다 썼어요"라는 안내가 떠요. 정확한 한도는 AI Studio의 사용량(Usage / Rate limit) 화면에서 볼 수 있어요.
@@ -178,7 +178,7 @@ AI 키는 **비밀값**이라 웹페이지(`config.js`)에 넣으면 안 돼요.
 
 ### 8-2. 방법 A — 대시보드에서 배포 (설치 없이)
 1. Supabase 대시보드 → **Edge Functions** → **Secrets**(또는 Project Settings → Edge Functions)에서 **Add new secret**:
-   - Name: `GEMINI_API_KEY` / Value: `AIza...`
+   - Name: `GEMINI_API_KEY` / Value: 복사한 키 (`AQ....` 또는 `AIza...`) — 앞뒤 공백 없이
 2. **Edge Functions → Deploy a new function → Via Editor**를 눌러요.
 3. 함수 이름을 **`med-ai`** 로 정해요. 이름이 정확히 같아야 앱이 찾을 수 있어요.
 4. 에디터 내용을 지우고 이 저장소의 [`supabase/functions/med-ai/index.ts`](../supabase/functions/med-ai/index.ts) 내용을 전부 붙여넣은 뒤 **Deploy function**을 눌러요.
@@ -190,7 +190,7 @@ AI 키는 **비밀값**이라 웹페이지(`config.js`)에 넣으면 안 돼요.
 ```sh
 npx supabase login                                   # 브라우저로 로그인
 npx supabase link --project-ref <프로젝트-ref>         # URL의 https://<ref>.supabase.co 부분
-npx supabase secrets set GEMINI_API_KEY=AIza...
+npx supabase secrets set GEMINI_API_KEY=AQ.여기에키
 npx supabase functions deploy med-ai --no-verify-jwt
 ```
 
@@ -224,6 +224,7 @@ npx supabase functions deploy med-ai --no-verify-jwt
 | AI가 "로그인이 필요해요"라고 해요 / 401 | 8-2의 **Verify JWT를 끄기**를 확인해주세요. 로그아웃 후 다시 로그인해도 돼요. |
 | "AI 키가 아직 설정되지 않았어요" | Secret 이름이 정확히 `GEMINI_API_KEY`인지 확인해주세요. |
 | "GEMINI_API_KEY 설정을 확인해주세요" | 키를 다시 복사해서 넣어주세요. AI Studio에서 키가 지워지지 않았는지도 확인해요. |
+| "Gemini가 API 키를 거부했어요" (401) | 새 형식(`AQ.`) 키가 일부 계정에서 거부된다는 제보가 있어요. ① 키를 공백 없이 다시 붙여넣기 ② AI Studio에서 새 키 만들기 ③ 그래도 안 되면 [Google Cloud 콘솔](https://console.cloud.google.com/apis/credentials)에서 같은 프로젝트로 **API 키 만들기** → Generative Language API로 제한해서 그 키를 넣어보세요. |
 | "오늘 무료 AI 사용량을 다 썼어요" | 무료 한도를 넘었어요. 잠시 뒤나 다음 날 다시 쓰면 돼요. |
 | "Gemini 모델을 찾을 수 없어요" | `GEMINI_MODEL` Secret을 AI Studio 모델 목록에 있는 이름으로 넣어주세요. |
 | 사진은 저장 안 되고 약 정보만 저장돼요 | `schema.sql`을 다시 실행해서 `med-photos` 버킷을 만들어주세요. |

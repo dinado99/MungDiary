@@ -144,6 +144,8 @@ async function gemini(system: string, contents: GeminiContent[]) {
     const msg: string = data?.error?.message ?? "";
     if (res.status === 429) throw new AIError(429, "오늘 무료 AI 사용량을 다 썼거나 요청이 너무 많아요. 잠시 후(또는 내일) 다시 해주세요");
     if (res.status === 404) throw new AIError(500, `Gemini 모델(${GEMINI_MODEL})을 찾을 수 없어요. GEMINI_MODEL 설정을 확인해주세요`);
+    // 새 형식(AQ.) 키가 일부 계정에서 401 로 거부되는 경우가 있어요 (docs/SETUP.md 문제 해결 참고)
+    if (res.status === 401) throw new AIError(500, "Gemini가 API 키를 거부했어요. 키를 다시 복사해 넣거나 새 키를 만들어주세요 (SETUP.md 문제 해결)");
     if (res.status === 403 || /API key/i.test(msg)) throw new AIError(500, "GEMINI_API_KEY 설정을 확인해주세요");
     console.error("gemini", res.status, msg);
     throw new AIError(502, `AI 서버 오류 (${res.status})`);
