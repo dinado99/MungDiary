@@ -6,7 +6,7 @@ AI 약 도우미(사진 인식·물어보기)까지 쓰려면 [8단계](#8단계
 ```
 [ 브라우저 (GitHub Pages) ]  ──로그인/기록──▶  [ Supabase ]
    index.html, js, css                        Auth (이메일 로그인)
-   js/config.js 에 URL + 공개키                 Postgres (pets, vaccines, weights, meds)
+   js/config.js 에 URL + 공개키                 Postgres (mungdiary_pets, _vaccines, _weights, _meds)
                                                Storage (약 사진, 비공개)
                                                RLS: 내 기록·사진만 읽고 쓰기
                                                Edge Function med-ai ──▶ [ Claude API ]
@@ -38,14 +38,15 @@ AI 약 도우미(사진 인식·물어보기)까지 쓰려면 [8단계](#8단계
 3. 오른쪽 아래 **Run** (또는 `Ctrl/Cmd + Enter`)을 눌러요.
    - `Success. No rows returned`가 나오면 성공이에요.
    - RLS 관련 확인 창이 뜨면 그대로 실행하면 돼요. 이 SQL이 RLS를 켜는 내용이에요.
-4. 왼쪽 **Table Editor**에서 `pets`, `vaccines`, `weights`, `meds` 4개 테이블이 보이면 끝이에요.
+4. 왼쪽 **Table Editor**에서 `mungdiary_pets`, `mungdiary_vaccines`, `mungdiary_weights`, `mungdiary_meds` 4개 테이블이 보이면 끝이에요.
+   표 이름이 모두 `mungdiary_`로 시작해서, 같은 프로젝트에 다른 앱의 표를 만들어도 섞이지 않아요.
 
 | 테이블 | 내용 |
 | --- | --- |
-| `pets` | 강아지 프로필 (이름, 견종, 생일, 털 색, 특이사항…) |
-| `vaccines` | 접종 기록 (항목, 접종일, 다음 예정일, 병원) |
-| `weights` | 몸무게 (날짜, kg) |
-| `meds` | 약상자 (용도, 복용법, 유통기한, 개봉일, 개봉 후 사용일수, 보관법, 주의사항…) |
+| `mungdiary_pets` | 강아지 프로필 (이름, 견종, 생일, 털 색, 특이사항…) |
+| `mungdiary_vaccines` | 접종 기록 (항목, 접종일, 다음 예정일, 병원) |
+| `mungdiary_weights` | 몸무게 (날짜, kg) |
+| `mungdiary_meds` | 약상자 (용도, 복용법, 유통기한, 개봉일, 개봉 후 사용일수, 보관법, 주의사항…) |
 
 모든 테이블에는 `user_id`가 있어요. 기록을 넣을 때 자동으로 **로그인한 사람의 id**가 들어가고, RLS 정책이 **자기 `user_id`인 행만** 읽고 쓰고 지울 수 있게 막아요. 강아지를 지우면 그 강아지의 접종·몸무게·약 기록도 같이 지워져요 (`on delete cascade`).
 
@@ -112,7 +113,7 @@ npx serve -l 3000 .                   # Node가 없으면: python3 -m http.serve
 1. 브라우저에서 <http://localhost:3000> 을 열어요.
 2. 로그인 화면이 나오면 **처음이에요 (회원가입)**을 눌러요. 3-1에서 Confirm email을 켜뒀다면 메일 인증까지 해요.
 3. **로그인** → 강아지를 등록하고 몸무게도 하나 넣어봐요.
-4. Supabase **Table Editor → pets / weights**에 행이 생겼으면 성공이에요 🎉
+4. Supabase **Table Editor → mungdiary_pets / mungdiary_weights**에 행이 생겼으면 성공이에요 🎉
 
 ## 6단계. GitHub Pages로 배포하기
 

@@ -67,6 +67,8 @@
   // ---------- 저장 ----------
   // mode: 'local'(이 브라우저에만) | 'cloud'(Supabase 계정) | 'login'(로그인 화면) | 'loading'
   const LISTS = ['pets', 'vaccines', 'weights', 'meds'];
+  // Supabase 표 이름: 다른 앱과 한 프로젝트를 같이 써도 안 겹치게 앞에 mungdiary_ 를 붙여요
+  const table = list => `mungdiary_${list}`;
   const blank = () => ({ pets: [], activePetId: null, vaccines: [], weights: [], meds: [] });
 
   const pref = {
@@ -133,7 +135,7 @@
 
   const cloudStore = {
     async loadAll() {
-      const results = await Promise.all(LISTS.map(t => sb.from(t).select('*').order('created_at')));
+      const results = await Promise.all(LISTS.map(t => sb.from(table(t)).select('*').order('created_at')));
       const s = blank();
       results.forEach((r, i) => {
         check(r);
@@ -141,23 +143,23 @@
       });
       return s;
     },
-    async put(list, obj) { check(await sb.from(list).upsert(toRow(list, obj))); },
-    async del(list, id) { check(await sb.from(list).delete().eq('id', id)); },
+    async put(list, obj) { check(await sb.from(table(list)).upsert(toRow(list, obj))); },
+    async del(list, id) { check(await sb.from(table(list)).delete().eq('id', id)); },
     // 백업/이 기기 기록을 계정에 올리기. id 는 새로 만들어서 겹치지 않게 해요.
     async upload(src, { replace = false } = {}) {
-      if (replace) check(await sb.from('pets').delete().not('id', 'is', null));
+      if (replace) check(await sb.from(table('pets')).delete().not('id', 'is', null));
       const petIds = new Map();
       const pets = (src.pets || []).map(p => {
         const id = uid();
         petIds.set(p.id, id);
         return toRow('pets', Object.assign({}, p, { id }));
       });
-      if (pets.length) check(await sb.from('pets').insert(pets));
+      if (pets.length) check(await sb.from(table('pets')).insert(pets));
       for (const list of ['vaccines', 'weights', 'meds']) {
         const rows = (src[list] || [])
           .filter(x => petIds.has(x.petId))
           .map(x => toRow(list, Object.assign({}, x, { id: uid(), petId: petIds.get(x.petId) })));
-        if (rows.length) check(await sb.from(list).insert(rows));
+        if (rows.length) check(await sb.from(table(list)).insert(rows));
       }
       return petIds;
     },
